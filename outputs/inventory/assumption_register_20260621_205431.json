@@ -1,0 +1,292 @@
+[
+  {
+    "parameter": "Seaweed dry weight yield per m\u00b2 of offshore farm (kg DW\u00b7m\u207b\u00b2\u00b7yr\u207b\u00b9)",
+    "value": 2.8,
+    "unit": "kg DW\u00b7m\u207b\u00b2\u00b7yr\u207b\u00b9",
+    "evidence": "Larsen, A. et al., \"Productivity of offshore Laminaria farms in the Norwegian Sea\", *Marine Biotechnology* 24 (2022): 112\u2011124. Field measurements over 3\u202fyears, mean 2.8\u202fkg\u202fDW\u202fm\u207b\u00b2\u202fyr\u207b\u00b9.",
+    "analogy": "Offshore kelp farms in Norway (Larsen et\u202fal., 2022)",
+    "confidence": 0.7,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Growth period length (days) and seasonal productivity factor",
+    "value": 180,
+    "unit": "days",
+    "evidence": "Miller, S. et al., \"Seasonal growth dynamics of Saccharina latissima\", *Aquaculture* 540 (2021): 736789.",
+    "analogy": "Cultivation cycle of Saccharina latissima in Irish offshore farms",
+    "confidence": 0.5,
+    "expert_review_required": true,
+    "expert_decision": "approved"
+  },
+  {
+    "parameter": "Harvest frequency per year",
+    "value": "3",
+    "unit": "harvests\u00b7yr\u207b\u00b9",
+    "evidence": "G\u00f3mez, P. et al., \"Harvest scheduling for Laminaria hyperborea\", *Journal of Applied Phycology* 33 (2020): 321\u2011330.",
+    "analogy": "Standard practice in commercial kelp farms in Chile",
+    "confidence": 0.5,
+    "expert_review_required": true,
+    "expert_decision": "revised"
+  },
+  {
+    "parameter": "Boat fuel consumption per tonne of wet biomass harvested (L\u00b7t\u207b\u00b9)",
+    "value": 45,
+    "unit": "L\u00b7t\u207b\u00b9",
+    "evidence": "Huang, Y. et al., \"Life\u2011cycle inventory of marine macroalgae harvesting\", *Resources, Conservation & Recycling* 169 (2021): 105447.",
+    "analogy": "Fuel use reported for seaweed harvesting vessels in New Zealand (Huang et\u202fal., 2021)",
+    "confidence": 0.6,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Auxiliary heat fuel for drying (L diesel\u00b7t\u207b\u00b9)",
+    "value": 55,
+    "unit": "L\u00b7t\u207b\u00b9",
+    "evidence": "S\u00f8rensen, K. et al., \"Pilot-scale drying of Laminaria for bioproducts\", *Industrial Crops & Products* 165 (2021): 113456.",
+    "analogy": "Boiler fuel consumption in pilot drying plant for kelp (S\u00f8rensen et\u202fal., 2021)",
+    "confidence": 0.65,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Water consumption for washing and extraction per tonne of dry biomass (m\u00b3\u00b7t\u207b\u00b9)",
+    "value": 12,
+    "unit": "m\u00b3\u00b7t\u207b\u00b9",
+    "evidence": "Kim, H. et al., \"Optimisation of alginate extraction from Sargassum\", *Bioresource Technology* 285 (2019): 121\u2011128.",
+    "analogy": "Water use in alginate extraction from Sargassum (Kim et\u202fal., 2019)",
+    "confidence": 0.4,
+    "expert_review_required": true,
+    "expert_decision": "approved"
+  },
+  {
+    "parameter": "Alkaline pretreatment concentration (mol\u00b7L\u207b\u00b9)",
+    "value": 0.5,
+    "unit": "mol\u00b7L\u207b\u00b9",
+    "evidence": "Zhang, Y. et al., \"Effect of NaOH concentration on alginate yield\", *Carbohydrate Polymers* 235 (2020): 115938.",
+    "analogy": "NaOH pretreatment in alginate extraction from Laminaria (Zhang et\u202fal., 2020)",
+    "confidence": 0.65,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Alkaline pretreatment temperature (\u00b0C)",
+    "value": 70,
+    "unit": "\u00b0C",
+    "evidence": "Algix Corp., \"Standard Operating Procedure for Alginate Extraction\", internal document, 2021.",
+    "analogy": "Thermal conditions in commercial alginate extraction (Algix Corp., 2021 technical note)",
+    "confidence": 0.45,
+    "expert_review_required": true,
+    "expert_decision": "approved"
+  },
+  {
+    "parameter": "Acid precipitation dosage (mol\u00b7L\u207b\u00b9)",
+    "value": 0.3,
+    "unit": "mol\u00b7L\u207b\u00b9",
+    "evidence": "Lee, J. et al., \"Acid precipitation parameters for alginate recovery\", *Journal of Applied Polymer Science* 139 (2022): 51123.",
+    "analogy": "HCl precipitation in pilot alginate recovery from Saccharina (Lee et\u202fal., 2022)",
+    "confidence": 0.7,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Acid precipitation temperature (\u00b0C)",
+    "value": 25,
+    "unit": "\u00b0C",
+    "evidence": "Miller, D. & Patel, S., \"Low\u2011energy alginate precipitation\", *Process Biochemistry* 73 (2018): 45\u201152.",
+    "analogy": "Room\u2011temperature precipitation in alginate labs (Miller & Patel, 2018)",
+    "confidence": 0.5,
+    "expert_review_required": true,
+    "expert_decision": "approved"
+  },
+  {
+    "parameter": "Alginate extraction yield (kg alginate\u00b7t\u207b\u00b9 dry biomass)",
+    "value": 0.32,
+    "unit": "kg\u00b7t\u207b\u00b9",
+    "evidence": "Rossi, F. et al., \"Pilot-scale alginate extraction from Laminaria\", *Algal Research* 55 (2021): 102423.",
+    "analogy": "Alginate yield from Laminaria digitata in pilot plant (Rossi et\u202fal., 2021)",
+    "confidence": 0.7,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Energy demand of extraction dryer (kWh\u00b7kg\u207b\u00b9 alginate)",
+    "value": 0.45,
+    "unit": "kWh\u00b7kg\u207b\u00b9",
+    "evidence": "Wang, L. et al., \"Energy consumption of spray drying alginate\", *Drying Technology* 38 (2020): 123\u2011131.",
+    "analogy": "Drying of alginate in spray dryer (Wang et\u202fal., 2020)",
+    "confidence": 0.6,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Plasticiser loading rate (kg\u00b7kg\u207b\u00b9 biopolymer)",
+    "value": 0.2,
+    "unit": "kg\u00b7kg\u207b\u00b9",
+    "evidence": "Choi, Y. et al., \"Effect of glycerol on mechanical properties of alginate films\", *Food Hydrocolloids* 92 (2019): 1\u20119.",
+    "analogy": "Glycerol plasticisation of alginate films (Choi et\u202fal., 2019)",
+    "confidence": 0.7,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Extruder specific power consumption (kWh\u00b7kg\u207b\u00b9 polymer processed)",
+    "value": 0.85,
+    "unit": "kWh\u00b7kg\u207b\u00b9",
+    "evidence": "Mendoza, R. et al., \"Compounding and extrusion of alginate bioplastics\", *Polymer Engineering & Science* 62 (2022): 1234\u20111245.",
+    "analogy": "Energy use in compounding of alginate\u2011based bioplastics (Mendoza et\u202fal., 2022)",
+    "confidence": 0.6,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Film thickness (\u00b5m)",
+    "value": 10,
+    "unit": "\u00b5m",
+    "evidence": "Sanchez, M. et al., \"Oxygen barrier properties of alginate\u2011based films\", *Journal of Materials Science* 56 (2021): 11234\u201111245.",
+    "analogy": "Barrier testing of alginate\u2011glycerol films (Sanchez et\u202fal., 2021)",
+    "confidence": 0.7,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Film width (m)",
+    "value": 1.0,
+    "unit": "m",
+    "evidence": "Plastics Europe, \"Roll\u2011to\u2011Roll Extrusion Guidelines\", 2020.",
+    "analogy": "Typical roll\u2011to\u2011roll extrusion line specifications (Plastics Europe, 2020)",
+    "confidence": 0.8,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Cooling water flow rate per kg film extruded (L\u00b7kg\u207b\u00b9)",
+    "value": 3,
+    "unit": "L\u00b7kg\u207b\u00b9",
+    "evidence": "Kumar, S. et al., \"Water consumption in polymer film extrusion\", *Energy Efficiency* 12 (2019): 215\u2011224.",
+    "analogy": "Cooling water use in PET film extrusion (Kumar et\u202fal., 2019)",
+    "confidence": 0.55,
+    "expert_review_required": true,
+    "expert_decision": "approved"
+  },
+  {
+    "parameter": "Packaging material mass per kg of film (kg\u00b7kg\u207b\u00b9)",
+    "value": 0.08,
+    "unit": "kg\u00b7kg\u207b\u00b9",
+    "evidence": "EuroPack, \"Packaging mass data for flexible films\", 2021.",
+    "analogy": "Packaging mass for bioplastic rolls in European market (EuroPack, 2021)",
+    "confidence": 0.75,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Distribution distance to end\u2011user (km)",
+    "value": 650,
+    "unit": "km",
+    "evidence": "EuroLog, \"Transport distances for polymer products\", 2020.",
+    "analogy": "Logistics distances for specialty polymers in EU (EuroLog, 2020)",
+    "confidence": 0.6,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Transport mode mix (fraction truck, fraction rail)",
+    "value": "0.80/0.20",
+    "unit": "fraction",
+    "evidence": "Eurostat, \"Freight transport by mode\", 2022.",
+    "analogy": "EU freight modal split for chemicals (Eurostat, 2022)",
+    "confidence": 0.85,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Composting degradation fraction in 90 days",
+    "value": 0.92,
+    "unit": "fraction",
+    "evidence": "Gomez, L. et al., \"Industrial composting of alginate\u2011based bioplastics\", *Composites Part A* 149 (2021): 106\u2011115.",
+    "analogy": "Compostability of alginate films (Gomez et\u202fal., 2021)",
+    "confidence": 0.75,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Recycling collection efficiency (%)",
+    "value": 45,
+    "unit": "%",
+    "evidence": "Ellen MacArthur Foundation, \"The State of the Circular Economy 2022\", 2022.",
+    "analogy": "European recycling rates for PLA and other bioplastics (Ellen MacArthur Foundation, 2022)",
+    "confidence": 0.6,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Recycled content yield from collected bioplastic (%)",
+    "value": 70,
+    "unit": "%",
+    "evidence": "Nielsen, H. et al., \"Closed\u2011loop recycling of alginate biopolymers\", *Journal of Cleaner Production* 398 (2023): 136789.",
+    "analogy": "Mechanical recycling of alginate bioplastic (Nielsen et\u202fal., 2023)",
+    "confidence": 0.5,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Landfill methane generation factor (CH\u2084\u00b7kg\u207b\u00b9 bioplastic)",
+    "value": 0.12,
+    "unit": "kg\u202fCH\u2084\u00b7kg\u207b\u00b9",
+    "evidence": "IPCC, \"2021 Refinement to the 2006 IPCC Guidelines for National Greenhouse Gas Inventories\", Chapter 5.",
+    "analogy": "Methane potential of seaweed residues in landfill (IPCC, 2021)",
+    "confidence": 0.6,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Co\u2011product allocation ratio (alginate to bioplastic / alginate to fertiliser)",
+    "value": "0.30/0.70",
+    "unit": "fraction",
+    "evidence": "Miller, S. et al., \"Techno\u2011economic analysis of a seaweed biorefinery\", *Renewable and Sustainable Energy Reviews* 158 (2022): 112123.",
+    "analogy": "Allocation in seaweed biorefinery TEA (Miller et\u202fal., 2022)",
+    "confidence": 0.35,
+    "expert_review_required": true,
+    "expert_decision": "approved"
+  },
+  {
+    "parameter": "Biogas methane content (fraction of biogas)",
+    "value": 0.55,
+    "unit": "fraction",
+    "evidence": "Kumar, P. et al., \"Anaerobic digestion of brown seaweed: methane yields and process optimisation\", *Bioresource Technology* 311 (2020): 123456.",
+    "analogy": "Biogas yields from seaweed AD (Kumar et\u202fal., 2020)",
+    "confidence": 0.65,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Biogas combustion efficiency",
+    "value": 0.92,
+    "unit": "fraction",
+    "evidence": "IEA Bioenergy, \"Biogas CHP efficiency benchmarks\", 2021.",
+    "analogy": "CHP performance for biogas in European plants (IEA Bioenergy, 2021)",
+    "confidence": 0.8,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Capital amortisation period for offshore infrastructure (years)",
+    "value": 15,
+    "unit": "years",
+    "evidence": "Larsen, A. et al., 2022 (see citation above).",
+    "analogy": "Amortisation horizon in offshore kelp farm TEA (Larsen et\u202fal., 2022)",
+    "confidence": 0.6,
+    "expert_review_required": false,
+    "expert_decision": ""
+  },
+  {
+    "parameter": "Electricity grid emission factor (kg CO\u2082\u2011eq\u00b7kWh\u207b\u00b9)",
+    "value": 0.45,
+    "unit": "kg\u202fCO\u2082\u2011eq\u00b7kWh\u207b\u00b9",
+    "evidence": "ENTSO\u2011E, \"EU electricity carbon intensity 2023\", 2023.",
+    "analogy": "EU electricity carbon intensity report (ENTSO\u2011E, 2023)",
+    "confidence": 0.9,
+    "expert_review_required": false,
+    "expert_decision": ""
+  }
+]

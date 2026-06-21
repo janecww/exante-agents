@@ -1,0 +1,30 @@
+parameter,value,unit,confidence,expert_reviewed
+Seaweed dry weight yield per m² of offshore farm,2.8,kg DW·m⁻²·yr⁻¹,0.7,False
+Growth period length,180,days,0.5,True
+Harvest frequency per year,3,harvests·yr⁻¹,0.5,True
+Boat fuel consumption per tonne of wet biomass harvested,45,L·t⁻¹,0.6,False
+Auxiliary heat fuel for drying,55,L·t⁻¹,0.65,False
+Water consumption for washing and extraction per tonne of dry biomass,12,m³·t⁻¹,0.4,True
+Alkaline pretreatment concentration,0.5,mol·L⁻¹,0.65,False
+Alkaline pretreatment temperature,70,°C,0.45,True
+Acid precipitation dosage,0.3,mol·L⁻¹,0.7,False
+Acid precipitation temperature,25,°C,0.5,True
+Alginate extraction yield,0.32,kg·t⁻¹,0.7,False
+Energy demand of extraction dryer,0.45,kWh·kg⁻¹,0.6,False
+Plasticiser loading rate,0.2,kg·kg⁻¹,0.7,False
+Extruder specific power consumption,0.85,kWh·kg⁻¹,0.6,False
+Film thickness,10,µm,0.7,False
+Film width,1.0,m,0.8,False
+Cooling water flow rate per kg film extruded,3,L·kg⁻¹,0.55,True
+Packaging material mass per kg of film,0.08,kg·kg⁻¹,0.75,False
+Distribution distance to end‑user,650,km,0.6,False
+Transport mode mix (truck/rail),0.8,fraction,0.85,False
+Composting degradation fraction in 90 days,0.92,fraction,0.75,False
+Recycling collection efficiency,45,%,0.6,False
+Recycled content yield from collected bioplastic,70,%,0.5,False
+Landfill methane generation factor,0.12,kg CH₄·kg⁻¹,0.6,False
+Co‑product allocation ratio (alginate to bioplastic / alginate to fertiliser),0.3,fraction,0.35,True
+Biogas methane content,0.55,fraction,0.65,False
+Biogas combustion efficiency,0.92,fraction,0.8,False
+Capital amortisation period for offshore infrastructure,15,years,0.6,False
+Electricity grid emission factor,0.45,kg CO₂‑eq·kWh⁻¹,0.9,False
