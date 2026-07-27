@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MODEL = "openai/gpt-oss-120b:free"
+MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
 BASE_URL = "https://openrouter.ai/api/v1"
 
 client = OpenAI(

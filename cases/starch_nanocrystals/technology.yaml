@@ -1,0 +1,154 @@
+technology:
+  name: starch nanocrystals production (SNC) for mango kernel starch (MKS)
+  type: bio-based material
+  functional_unit: "1 kg starch nanocrystals (SNC)"
+  description: >
+    Starch nanocrystals (SNC) are a nanoscale reinforcement filler produced
+    from mango kernel starch (MKS) via acid hydrolysis. SNC are used as an
+    input to biopolymer film production, improving the film's mechanical
+    properties. This case models only the SNC production sub-chain.
+
+current_state:
+  trl: 4
+  scale: lab
+  throughput: null
+
+target_state:
+  trl: null
+  scale: industrial
+  throughput: null
+
+processes:
+
+  - id: P01
+    name: Hydrolysis
+    process_type: chemical_reaction
+    depends_on: []
+
+    inputs:
+      - name: starch
+        value: 3.16
+        unit: kg
+
+      - name: water
+        value: 15.61
+        unit: kg
+
+      - name: hydrochloric acid
+        value: 1.24
+        unit: kg
+
+      - name: phosphoric acid
+        value: 3.33
+        unit: kg
+
+      - name: electricity
+        value: 1222.3
+        unit: kWh
+
+    outputs:
+      - name: biowaste
+        value: 0.21
+        unit: kg
+
+  - id: P02
+    name: Centrifugation
+    process_type: separation
+    depends_on:
+      - P01
+
+    inputs:
+      - name: water
+        value: 172.22
+        unit: L
+
+      - name: electricity
+        value: 116.61
+        unit: kWh
+
+    outputs:
+      - name: wastewater
+        value: 186.04
+        unit: L
+
+  - id: P03
+    name: Homogenising
+    process_type: mechanical
+    depends_on:
+      - P02
+
+    inputs:
+      - name: water
+        value: 32.29
+        unit: kg
+
+      - name: electricity
+        value: 0.23
+        unit: kWh
+
+    outputs:
+      - name: biowaste
+        value: 1.24
+        unit: kg
+
+  - id: P04
+    name: Ultrasonication
+    process_type: mechanical
+    depends_on:
+      - P03
+
+    inputs:
+      - name: electricity
+        value: 3.61
+        unit: kWh
+
+    outputs:
+      - name: biowaste
+        value: 1.24
+        unit: kg
+
+  - id: P05
+    name: Dialysis
+    process_type: separation
+    depends_on:
+      - P04
+
+    inputs:
+      - name: water
+        value: 25.83
+        unit: L
+
+    outputs:
+      - name: biowaste
+        value: 0.21
+        unit: kg
+
+      - name: wastewater
+        value: 25.83
+        unit: kg
+
+  - id: P06
+    name: Final homogenising
+    process_type: mechanical
+    depends_on:
+      - P05
+
+    note: Second homogenising step after dialysis.
+
+    inputs:
+      - name: water
+        value: 2.15
+        unit: kg
+
+      - name: trichloromethane
+        value: 1.28e-02
+        unit: kg
+
+      - name: electricity
+        value: 1.21e-02
+        unit: kWh
+
+    outputs:
+      - name: biowaste
+        value: 0.21
+        unit: kg

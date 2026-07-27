@@ -1,12 +1,22 @@
-from harness.orchestrator import Orchestrator
+"""
+Stage 1 POC Entry Point
 
-TECHNOLOGY = "Brown seaweed-based bioplastic"
-SCALE = "4000 tonnes per year production capacity"
+This application executes the Stage 1 multi-agent workflow for
+prospective LCA assumption development.
 
+Workflow:
+1. Load technology.yaml
+2. Initialize GraphState
+3. Execute LangGraph workflow
+4. Export review package
+
+Business logic should NOT be implemented here.
+"""
 
 def main() -> None:
-    orchestrator = Orchestrator(technology=TECHNOLOGY, scale=SCALE)
-    orchestrator.run()
+    raise NotImplementedError(
+        "Stage 1 POC has not been implemented yet."
+    )
 
 
 if __name__ == "__main__":

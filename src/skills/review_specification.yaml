@@ -1,0 +1,247 @@
+# ============================================================================
+# Review Specification
+# Purpose:
+#   Defines how the Scientific Review Agent evaluates assumptions produced
+#   by the Process Evolution Agent.
+#
+# This file DOES NOT contain the correct answers.
+# It defines the quality criteria that every assumption should satisfy.
+# ============================================================================
+
+review_specification:
+
+  version: "1.0"
+
+  objective: >
+    Evaluate whether the proposed process and inventory assumptions are
+    sufficiently complete, transparent and scientifically justified for
+    prospective Life Cycle Assessment (LCA).
+
+  review_principles:
+
+    - Focus on assumption quality rather than correctness.
+
+    - Prefer identifying potential issues over rejecting assumptions.
+
+    - Missing justification is a stronger concern than uncertain values.
+
+    - Engineering judgement is acceptable when evidence is unavailable,
+      provided the rationale is clearly explained.
+
+    - Recommendations should improve assumptions rather than replace them.
+
+# ----------------------------------------------------------------------------
+
+evaluation_dimensions:
+
+  completeness:
+
+    description: >
+      Assess whether sufficient information has been provided for the
+      assumption to be reviewed and reproduced.
+
+    checks:
+
+      process_assumption_exists: true
+
+      target_scale_defined: true
+
+      inventory_flows_identified: true
+
+      estimation_method_specified: true
+
+      rationale_provided: true
+
+      evidence_provided: true
+
+      reasoning_mode_declared: true
+
+  engineering_plausibility:
+
+    description: >
+      Assess whether the proposed scale-up assumptions are technically
+      plausible from an engineering perspective.
+
+    checks:
+
+      industrial_process_reasonable: true
+
+      laboratory_equipment_not_retained_without_justification: true
+
+      inventory_consistent_with_process: true
+
+      operating_conditions_reasonable: true
+
+      no_obvious_engineering_conflicts: true
+
+  justification:
+
+    description: >
+      Assess whether assumptions are adequately supported.
+
+    checks:
+
+      rationale_supported: true
+
+      assumptions_explained: true
+
+      estimation_method_appropriate: true
+
+  evidence:
+
+    description: >
+      Assess whether supporting evidence is appropriate and traceable.
+
+    preferred_priority:
+
+      - user_documents
+
+      - provided_reference_material
+
+      - peer_reviewed_literature
+
+      - technical_reports
+
+      - engineering_analogy
+
+      - web_sources
+
+      - llm_internal_knowledge
+
+    checks:
+
+      source_identified: true
+
+      source_traceable: true
+
+      evidence_matches_claim: true
+
+  reasoning:
+
+    description: >
+      Assess whether the reasoning process is transparent.
+
+    accepted_reasoning_modes:
+
+      - direct_evidence
+
+      - engineering_heuristic
+
+      - engineering_analogy
+
+      - literature_synthesis
+
+      - engineering_judgement
+
+      - conservative_assumption
+
+    checks:
+
+      reasoning_mode_declared: true
+
+      reasoning_consistent_with_evidence: true
+
+  uncertainty:
+
+    description: >
+      Assess whether uncertainty has been communicated where appropriate.
+
+    checks:
+
+      uncertainty_discussed_if_relevant: true
+
+      limitations_disclosed: true
+
+# ----------------------------------------------------------------------------
+
+flag_conditions:
+
+  high_priority:
+
+    - missing_process_assumption
+
+    - missing_inventory_flow
+
+    - missing_estimation_method
+
+    - missing_rationale
+
+    - missing_supporting_evidence
+
+    - reasoning_not_declared
+
+  medium_priority:
+
+    - weak_engineering_justification
+
+    - unsupported_engineering_claim
+
+    - evidence_not_traceable
+
+    - engineering_analogy_not_justified
+
+    - conflicting_sources
+
+    - uncertainty_not_discussed
+
+    - inventory_not_consistent_with_process
+
+    - process_not_plausible_for_target_scale
+
+  low_priority:
+
+    - limited_supporting_evidence
+
+    - recommendation_could_be_better_supported
+
+# ----------------------------------------------------------------------------
+
+review_output:
+
+  recommendation:
+
+    allowed_values:
+
+      - accept
+
+      - revise
+
+      - expert_review
+
+  findings:
+
+    include:
+
+      - issue
+
+      - explanation
+
+      - suggested_revision
+
+      - affected_assumption
+
+# ----------------------------------------------------------------------------
+
+review_behavior:
+
+  do_not:
+
+    - determine_the_single_correct_answer
+
+    - invent_missing_evidence
+
+    - reject_assumptions_only_due_to_uncertainty
+
+    - require_peer_reviewed_literature_if_unavailable
+
+  should:
+
+    - explain_every_flag
+
+    - recommend_practical_improvements
+
+    - preserve_traceability
+
+    - acknowledge_reasonable_engineering_judgement
+
+# ============================================================================

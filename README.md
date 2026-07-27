@@ -74,3 +74,8 @@ All outputs are timestamped with the run ID (`YYYYMMDD_HHMMSS`).
 
 Edit `main.py` to change the technology description or production scale.  
 The confidence threshold (default 0.6) is set in `harness/orchestrator.py`.
+
+
+## Notes
+Run "python -m venv venv"
+Run ".\venv\Scripts\Activate.ps1"
