@@ -88,54 +88,37 @@ decision_rules:
 # - Peer-reviewed literature
 # - Technical reports and standards
 # - Patents
+# - Similar technologies and industrial analogues
 #
 # Considerations:
-# - Literature retrieval (e.g., Semantic Scholar, Crossref, OpenAlex)
-# - PDF parsing and information extraction
-# - Chunking and retrieval strategies (RAG)
-# - Citation tracking and evidence linking
-# - Cost and token efficiency when processing long documents
-# - How extracted evidence should be stored for reuse across agents
 #
-# Investigate how agents can identify and utilise evidence from
-# similar technologies when direct evidence is unavailable:
+# Literature retrieval
+# - Semantic Scholar
+# - Crossref
+# - OpenAlex
+# - Google Scholar (if available)
 #
-# - Technology similarity assessment:
-#     - How should technologies be represented for comparison?
-#       (e.g., process flow, unit operations, feedstock, TRL,
-#       operating conditions, performance indicators)
-#     - How can agents distinguish:
-#         - technically analogous technologies
-#         - partially transferable technologies
-#         - misleading analogies
+# Evidence extraction
+# - PDF parsing
+# - Chunking and retrieval (RAG)
+# - Citation tracking
+# - Evidence linking to assumptions
+# - Cost and token efficiency
 #
-# - Similar technology retrieval:
-#     - Identify relevant technologies through:
-#         - semantic search
-#         - keyword expansion
-#         - citation networks
-#         - domain knowledge graphs
+# Similar technology identification
+# - How should similar technologies be identified?
+# - Which similarity criteria should be considered?
+#   (e.g. feedstock, chemistry, unit operations,
+#   processing principles, product function, TRL)
+# - How should similarity be evaluated and ranked?
+# - How can the agent justify why a technology is considered similar?
 #
-# - Evidence transfer from analogous technologies:
-#     - Determine which parameters can be transferred:
-#         - process conditions
-#         - energy consumption
-#         - material requirements
-#         - equipment specifications
-#         - yield/productivity
-#         - cost indicators
-#     - Quantify uncertainty introduced by:
-#         - different feedstocks
-#         - different process configurations
-#         - different technology maturity levels
-#         - different scales of operation
-#
-# Consider developing a dedicated technology analogy capability:
-# - Rank similar technologies
-# - Provide similarity rationale
-# - Identify transferable and non-transferable assumptions
-# - Retrieve supporting literature and quantitative benchmarks
-# - Assign confidence scores to transferred assumptions
+# Knowledge transfer
+# - How can relevant literature for similar technologies be discovered?
+# - Which process assumptions can reasonably be transferred?
+# - Which engineering heuristics can be reused?
+# - Which inventory values or estimation methods can be adapted?
+# - How should uncertainty introduced by technology analogy be represented?
 #
 # This capability is outside the scope of the current Stage 1 POC but
 # should be considered in future iterations of the framework.
