@@ -1,29 +1,37 @@
-"""LangGraph construction for the Stage 1 workflow.
+"""LangGraph topology construction for the Stage 1 workflow.
 
-Isolates graph construction (nodes, edges, compilation, visualization)
-from the orchestrator, which is only responsible for invoking the
-compiled graph. This keeps the future replacement of placeholder agents
-with LLM-powered implementations independent of how the graph is wired.
+This module owns only the workflow topology: registering nodes, wiring
+edges, and compiling the graph. It receives fully constructed agent
+instances from the orchestrator and has no knowledge of how those agents
+are built or where their dependencies (e.g. shared skills) come from.
 """
 
 from pathlib import Path
+from typing import Callable
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from src.agents.process_evolution import process_evolution_agent
-from src.agents.scientific_review import scientific_review_agent
 from src.state.graph_state import GraphState
 
+AgentCallable = Callable[[GraphState], GraphState]
 
-def build_graph() -> CompiledStateGraph:
+
+def build_graph(
+    process_agent: AgentCallable,
+    review_agent: AgentCallable,
+) -> CompiledStateGraph:
     """Build and compile the Stage 1 workflow graph.
 
     Workflow: START -> Process Evolution Agent -> Scientific Review Agent -> END
+
+    `process_agent` and `review_agent` are fully constructed, callable
+    agent instances (e.g. `ProcessEvolutionAgent`/`ScientificReviewAgent`)
+    registered directly as LangGraph nodes.
     """
     graph = StateGraph(GraphState)
-    graph.add_node("process_evolution", process_evolution_agent)
-    graph.add_node("scientific_review", scientific_review_agent)
+    graph.add_node("process_evolution", process_agent)
+    graph.add_node("scientific_review", review_agent)
 
     graph.add_edge(START, "process_evolution")
     graph.add_edge("process_evolution", "scientific_review")

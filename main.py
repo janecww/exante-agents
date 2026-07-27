@@ -10,6 +10,8 @@ Business logic should NOT be implemented here.
 
 from pathlib import Path
 
+from src.agents.process_evolution import ProcessEvolutionAgent
+from src.agents.scientific_review import ScientificReviewAgent
 from src.orchestrator.graph_builder import build_graph, export_graph
 from src.orchestrator.orchestrator import run
 
@@ -21,7 +23,8 @@ def main() -> None:
 
     print("Saving workflow visualization...")
     try:
-        output_path = export_graph(build_graph(), CASE_DIR / "outputs" / "workflow.png")
+        visualization_graph = build_graph(ProcessEvolutionAgent({}), ScientificReviewAgent({}))
+        output_path = export_graph(visualization_graph, CASE_DIR / "outputs" / "workflow.png")
         print(f"Workflow visualization saved to {output_path}")
     except Exception as exc:
         print(f"Workflow visualization could not be saved: {exc}")
