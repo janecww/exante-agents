@@ -2,8 +2,9 @@
 
 The Process Evolution Agent develops prospective industrial process and
 foreground inventory assumptions from laboratory-scale technologies.
-Shared Stage 1 skills and an LLM client are injected by the orchestrator
-during construction rather than loaded by the agent itself.
+Shared Stage 1 skills, an LLM callable, and the case's output directory
+are injected by the orchestrator during construction rather than
+resolved by the agent itself.
 
 The agent reasons about exactly one laboratory process per call. It has
 no knowledge of the overall workflow, the other laboratory processes, or
@@ -14,44 +15,64 @@ agent itself.
 Current milestone:
     Orchestrator's Process Evolution Stage loops over every laboratory
     process, calling this agent once per process:
-        Agent -> build prompt -> print prompt -> return the
-        ProcessReviewEntry unchanged
+        Agent -> build prompt -> invoke LLM -> persist input/prompt/
+        response -> return the ProcessReviewEntry unchanged
 
-    The LLM is injected but is not invoked yet.
+    The raw LLM response is persisted but never parsed, and the
+    ProcessReviewEntry is not updated yet.
 
 Future milestone:
     Agent -> build prompt -> invoke LLM -> parse response -> return an
     updated ProcessReviewEntry.
 """
 
-from typing import Any
+import re
+from pathlib import Path
+from typing import Any, Callable
 
 from src.models.review_package import ProcessReviewEntry
 from src.models.technology import Process, Technology
 from src.prompts.process_evolution_prompt import build_process_evolution_prompt
+from src.tools.output_writer import append_log, save_input, save_prompt, save_response
+
+
+def _slugify(text: str | None) -> str:
+    """Turn free text into a filesystem-safe lowercase slug."""
+    slug = re.sub(r"[^a-zA-Z0-9]+", "_", text or "").strip("_").lower()
+    return slug or "process"
 
 
 class ProcessEvolutionAgent:
     """Process Evolution Agent: reasons about exactly one process.
 
-    Shared Stage 1 skills and an LLM client are provided by the
-    orchestrator during construction. The current implementation builds
-    and prints the prompt for review but performs no reasoning and makes
-    no LLM calls.
+    Shared Stage 1 skills, an LLM callable, and the case's output
+    directory are provided by the orchestrator during construction. The
+    current implementation builds the prompt, invokes the LLM, and
+    persists the input/prompt/response as execution artifacts, but
+    performs no parsing or reasoning over the response.
     """
 
-    def __init__(self, llm: Any, skills: dict[str, Any]) -> None:
+    def __init__(
+        self,
+        llm: Callable[[str], str] | None,
+        skills: dict[str, Any],
+        case_directory: str | Path,
+    ) -> None:
         """Initialise the agent.
 
         Parameters
         ----------
         llm
-            LLM client injected by the orchestrator. Not yet used.
+            A `prompt -> str` callable injected by the orchestrator.
         skills
             Shared Stage 1 skills injected by the orchestrator.
+        case_directory
+            The case directory whose `outputs/` tree execution artifacts
+            are persisted under.
         """
         self.llm = llm
         self.skills = skills
+        self.case_directory = Path(case_directory)
 
     def __call__(
         self,
@@ -59,7 +80,7 @@ class ProcessEvolutionAgent:
         process: Process,
         process_review_entry: ProcessReviewEntry,
     ) -> ProcessReviewEntry:
-        """Build and print the prompt for one laboratory process.
+        """Build the prompt, invoke the LLM, and persist the artifacts.
 
         Parameters
         ----------
@@ -74,18 +95,29 @@ class ProcessEvolutionAgent:
         Returns
         -------
         ProcessReviewEntry
-            The entry for this process (currently unchanged, since no
-            LLM is invoked yet).
+            The entry for this process, unchanged (the response is not
+            parsed yet).
         """
         print(f"Running Process Evolution Agent for process '{process.id}'...")
+
+        stem = f"{process.id}_{_slugify(process.name)}"
+
+        save_input(self.case_directory, f"{stem}.yaml", process.model_dump())
 
         prompt = build_process_evolution_prompt(
             technology, process, process_review_entry, self.skills
         )
-        print(prompt)
+        save_prompt(self.case_directory, f"{stem}.txt", prompt)
+        append_log(self.case_directory, f"Process Evolution: {process.name}")
+        append_log(self.case_directory, "Prompt generated")
+
+        response = self.llm(prompt)
+        append_log(self.case_directory, "LLM invoked")
+
+        save_response(self.case_directory, f"{stem}.txt", response)
+        append_log(self.case_directory, "Response saved")
 
         # TODO:
-        # response = self.llm.invoke(prompt)
         # Parse `response` and use it to populate and return an updated
         # ProcessReviewEntry.
 

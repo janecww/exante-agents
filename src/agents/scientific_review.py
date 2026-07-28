@@ -2,9 +2,9 @@
 
 The Scientific Review Agent evaluates proposed process and inventory
 assumptions for completeness, plausibility, traceability, and scientific
-justification. Shared Stage 1 skills and an LLM client are injected by
-the orchestrator during construction rather than loaded by the agent
-itself.
+justification. Shared Stage 1 skills, an LLM callable, and the case's
+output directory are injected by the orchestrator during construction
+rather than resolved by the agent itself.
 
 The agent reviews the completed ReviewPackage exactly once per call. It
 has no knowledge of how the ReviewPackage was produced — the
@@ -14,49 +14,61 @@ agent.
 Current milestone:
     Orchestrator's Scientific Review Stage calls this agent once, after
     every laboratory process has been processed:
-        Agent -> build prompt -> print prompt -> return the ReviewPackage
-        unchanged
+        Agent -> build prompt -> invoke LLM -> persist input/prompt/
+        response -> return the ReviewPackage unchanged
 
-    The LLM is injected but is not invoked yet.
+    The raw LLM response is persisted but never parsed.
 
 Future milestone:
     Agent -> build prompt -> invoke LLM -> parse response -> return an
     updated ReviewPackage with review_comments populated.
 """
 
-from typing import Any
+from pathlib import Path
+from typing import Any, Callable
 
 from src.models.review_package import ReviewPackage
 from src.models.technology import Technology
 from src.prompts.scientific_review_prompt import build_scientific_review_prompt
+from src.tools.output_writer import append_log, save_input, save_prompt, save_response
 
 
 class ScientificReviewAgent:
     """Scientific Review Agent: reviews the completed ReviewPackage once.
 
-    Shared Stage 1 skills and an LLM client are provided by the
-    orchestrator during construction. The current implementation builds
-    and prints the prompt for review but performs no reasoning and makes
-    no LLM calls.
+    Shared Stage 1 skills, an LLM callable, and the case's output
+    directory are provided by the orchestrator during construction. The
+    current implementation builds the prompt, invokes the LLM, and
+    persists the input/prompt/response as execution artifacts, but
+    performs no parsing or reasoning over the response.
     """
 
-    def __init__(self, llm: Any, skills: dict[str, Any]) -> None:
+    def __init__(
+        self,
+        llm: Callable[[str], str] | None,
+        skills: dict[str, Any],
+        case_directory: str | Path,
+    ) -> None:
         """Initialise the agent.
 
         Parameters
         ----------
         llm
-            LLM client injected by the orchestrator. Not yet used.
+            A `prompt -> str` callable injected by the orchestrator.
         skills
             Shared Stage 1 skills injected by the orchestrator.
+        case_directory
+            The case directory whose `outputs/` tree execution artifacts
+            are persisted under.
         """
         self.llm = llm
         self.skills = skills
+        self.case_directory = Path(case_directory)
 
     def __call__(
         self, technology: Technology, review_package: ReviewPackage
     ) -> ReviewPackage:
-        """Build and print the review prompt for the completed package.
+        """Build the review prompt, invoke the LLM, and persist artifacts.
 
         Parameters
         ----------
@@ -68,18 +80,31 @@ class ScientificReviewAgent:
         Returns
         -------
         ReviewPackage
-            The review package (currently unchanged, since no LLM is
-            invoked yet).
+            The review package, unchanged (the response is not parsed
+            yet).
         """
         print("Running Scientific Review Agent...")
+
+        save_input(
+            self.case_directory,
+            "scientific_review_package.yaml",
+            review_package.model_dump(),
+        )
 
         prompt = build_scientific_review_prompt(
             technology, review_package, self.skills
         )
-        print(prompt)
+        save_prompt(self.case_directory, "scientific_review.txt", prompt)
+        append_log(self.case_directory, "Scientific Review")
+        append_log(self.case_directory, "Prompt generated")
+
+        response = self.llm(prompt)
+        append_log(self.case_directory, "LLM invoked")
+
+        save_response(self.case_directory, "scientific_review.txt", response)
+        append_log(self.case_directory, "Response saved")
 
         # TODO:
-        # response = self.llm.invoke(prompt)
         # Parse `response` and use it to populate review_comments, then
         # return an updated ReviewPackage.
 

@@ -2,29 +2,36 @@
 
 The orchestrator owns all workflow coordination: it loads project inputs
 (technology, shared skills), instantiates the shared ReviewPackage with
-one empty entry per laboratory process, constructs the agents, drives
+one empty entry per laboratory process, constructs the agents (injecting
+the shared LLM callable, skills, and the case's output directory), drives
 the Process Evolution Stage (looping over every laboratory process and
 invoking the Process Evolution Agent once per process), drives the
 Scientific Review Stage (invoking the Scientific Review Agent once on
 the completed ReviewPackage), builds and executes the LangGraph
-workflow, and returns the final GraphState.
+workflow, and returns the final GraphState. It also logs the start and
+end of the overall workflow to the case's `outputs/logs/workflow.log`.
 
 The agents themselves never coordinate workflow: the Process Evolution
 Agent reasons about exactly one laboratory process per call and knows
 nothing about the other processes or the overall ReviewPackage; the
 Scientific Review Agent reviews the completed ReviewPackage exactly once
-and knows nothing about how it was produced. Both stages are LangGraph
-nodes that own that coordination on the agents' behalf.
+and knows nothing about how it was produced.
+
+Both stages are represented as LangGraph nodes.
+Each stage coordinates one part of the workflow while delegating the
+reasoning itself to the corresponding agent.
 """
 
 from pathlib import Path
 
+from config import invoke_llm
 from src.agents.process_evolution import ProcessEvolutionAgent
 from src.agents.scientific_review import ScientificReviewAgent
 from src.models.review_package import ProcessReviewEntry, ReviewPackage
 from src.models.technology import Technology
 from src.orchestrator.graph_builder import build_graph
 from src.state.graph_state import GraphState
+from src.tools.output_writer import append_log
 from src.tools.skill_loader import load_skills
 from src.tools.yaml_loader import load_yaml
 
@@ -92,10 +99,14 @@ def run(case_directory: str | Path) -> GraphState:
 
     Loads `technology.yaml` from `case_directory` and the shared skills
     from `SKILLS_DIR`, instantiates the initial ReviewPackage, constructs
-    the agents with the loaded skills injected, builds and executes the
-    compiled LangGraph workflow, and returns the final GraphState.
+    the agents with the loaded skills, the shared `invoke_llm` callable,
+    and `case_directory` injected, builds and executes the compiled
+    LangGraph workflow, and returns the final GraphState. Each agent
+    persists its own execution artifacts (input, prompt, raw response)
+    under `case_directory/outputs/`.
     """
     case_directory = Path(case_directory)
+    append_log(case_directory, "Workflow started")
 
     print("Loading technology...")
     technology = Technology(**load_yaml(case_directory / "technology.yaml"))
@@ -111,9 +122,8 @@ def run(case_directory: str | Path) -> GraphState:
         "review_package": review_package,
     }
 
-    # TODO: inject a real LLM client once agents invoke the LLM.
-    process_agent = ProcessEvolutionAgent(None, skills)
-    review_agent = ScientificReviewAgent(None, skills)
+    process_agent = ProcessEvolutionAgent(invoke_llm, skills, case_directory)
+    review_agent = ScientificReviewAgent(invoke_llm, skills, case_directory)
 
     def process_evolution_stage(state: GraphState) -> GraphState:
         return _run_process_evolution_stage(state, process_agent)
@@ -124,4 +134,7 @@ def run(case_directory: str | Path) -> GraphState:
     print("Building LangGraph...")
     graph = build_graph(process_evolution_stage, scientific_review_stage)
 
-    return graph.invoke(initial_state)
+    final_state = graph.invoke(initial_state)
+    append_log(case_directory, "Workflow completed")
+
+    return final_state
