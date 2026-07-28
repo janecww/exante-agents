@@ -6,10 +6,13 @@ performs no reasoning and makes no LLM calls; it only prepares the
 context a future LLM-powered agent will consume.
 """
 
+import json
+
 import yaml
 
 from src.models.review_package import ReviewPackage
 from src.models.technology import Technology
+from src.prompts.schema_skeleton import build_json_skeleton
 
 SECTION_SEPARATOR = "=" * 70
 
@@ -73,14 +76,26 @@ def build_scientific_review_prompt(
         "Review the review package shown above.\n\n"
         "Use the supplied engineering knowledge where appropriate. Assess "
         "the completeness, plausibility, justification, traceability, and "
-        "transparency of each assumption, and populate the review comments "
-        "for each. Preserve the existing schema of the review package "
-        "exactly: do not create any additional fields."
+        "transparency of each assumption, and populate review_comments for "
+        "every process and inventory assumption. The JSON structure shown "
+        "in EXPECTED OUTPUT below shows the exact shape of one entry; your "
+        "response must contain one such entry for every process shown in "
+        "REVIEW PACKAGE above — do not add, remove, or reorder processes."
     )
 
+    skeleton = build_json_skeleton(ReviewPackage)
     expected_output = (
-        "Return the supplied ReviewPackage with review comments completed "
-        "for each assumption while preserving the existing schema."
+        "Below is the exact JSON structure expected. Copy this structure "
+        "exactly. Populate values only.\n\n"
+        "Do not:\n"
+        "- rename fields\n"
+        "- remove fields\n"
+        "- add fields\n"
+        "- replace nested objects with strings\n"
+        "- replace lists with dictionaries\n\n"
+        "Return ONLY valid JSON. Do not include markdown, explanations, or "
+        "code fences.\n\n"
+        f"{json.dumps(skeleton, indent=2)}"
     )
 
     sections = [

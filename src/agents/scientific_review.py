@@ -12,25 +12,36 @@ orchestrator's Process Evolution Stage owns that iteration, not this
 agent.
 
 Current milestone:
-    Orchestrator's Scientific Review Stage calls this agent once, after
-    every laboratory process has been processed:
-        Agent -> build prompt -> invoke LLM -> persist input/prompt/
-        response -> return the ReviewPackage unchanged
+    Agent -> build prompt -> invoke LLM -> persist raw response -> parse
+    JSON -> validate into ReviewPackage -> persist parsed package ->
+    return the validated ReviewPackage
 
-    The raw LLM response is persisted but never parsed.
+    The LLM is instructed (via the prompt) to return only JSON matching
+    the existing ReviewPackage schema. That JSON is parsed with
+    `json.loads()` and validated with `ReviewPackage.model_validate()` —
+    no manual field mapping. If parsing or validation fails, the
+    exception is raised as-is (after the raw response has already been
+    saved for debugging); the response is never repaired or retried.
 
 Future milestone:
-    Agent -> build prompt -> invoke LLM -> parse response -> return an
-    updated ReviewPackage with review_comments populated.
+    Confidence estimation, retries, and human review of low-confidence
+    review comments.
 """
 
+import json
 from pathlib import Path
 from typing import Any, Callable
 
 from src.models.review_package import ReviewPackage
 from src.models.technology import Technology
 from src.prompts.scientific_review_prompt import build_scientific_review_prompt
-from src.tools.output_writer import append_log, save_input, save_prompt, save_response
+from src.tools.output_writer import (
+    append_log,
+    save_input,
+    save_parsed,
+    save_prompt,
+    save_response,
+)
 
 
 class ScientificReviewAgent:
@@ -38,9 +49,9 @@ class ScientificReviewAgent:
 
     Shared Stage 1 skills, an LLM callable, and the case's output
     directory are provided by the orchestrator during construction. The
-    current implementation builds the prompt, invokes the LLM, and
-    persists the input/prompt/response as execution artifacts, but
-    performs no parsing or reasoning over the response.
+    current implementation builds the prompt, invokes the LLM, persists
+    the input/prompt/response/parsed artifacts, and validates the raw
+    JSON response into a `ReviewPackage` using Pydantic.
     """
 
     def __init__(
@@ -68,7 +79,7 @@ class ScientificReviewAgent:
     def __call__(
         self, technology: Technology, review_package: ReviewPackage
     ) -> ReviewPackage:
-        """Build the review prompt, invoke the LLM, and persist artifacts.
+        """Build the review prompt, invoke the LLM, and return a validated package.
 
         Parameters
         ----------
@@ -80,8 +91,11 @@ class ScientificReviewAgent:
         Returns
         -------
         ReviewPackage
-            The review package, unchanged (the response is not parsed
-            yet).
+            The LLM's response, parsed as JSON and validated into a
+            `ReviewPackage`. Raises `json.JSONDecodeError` or a Pydantic
+            `ValidationError` if the response is not valid JSON matching
+            the expected schema; the response is never repaired or
+            retried.
         """
         print("Running Scientific Review Agent...")
 
@@ -104,8 +118,14 @@ class ScientificReviewAgent:
         save_response(self.case_directory, "scientific_review.txt", response)
         append_log(self.case_directory, "Response saved")
 
-        # TODO:
-        # Parse `response` and use it to populate review_comments, then
-        # return an updated ReviewPackage.
+        validated_review_package = ReviewPackage.model_validate(json.loads(response))
+        append_log(self.case_directory, "Response validated")
 
-        return review_package
+        save_parsed(
+            self.case_directory,
+            "review_package.yaml",
+            validated_review_package.model_dump(),
+        )
+        append_log(self.case_directory, "Parsed review package saved")
+
+        return validated_review_package

@@ -9,6 +9,7 @@ I/O. Everything is written under the case directory's existing
         inputs/     # the object supplied to an agent, as YAML
         prompts/    # the exact prompt text sent to the LLM
         responses/  # the exact raw text the LLM returned
+        parsed/     # the validated Pydantic model dump, as YAML
         logs/       # a single append-only workflow.log
 """
 
@@ -41,6 +42,13 @@ def save_response(case_directory: str | Path, filename: str, response: str) -> P
     path = _outputs_dir(case_directory) / "responses" / filename
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(response, encoding="utf-8")
+    return path
+
+
+def save_parsed(case_directory: str | Path, filename: str, data: dict) -> Path:
+    """Persist a validated Pydantic model dump as YAML under outputs/parsed/."""
+    path = _outputs_dir(case_directory) / "parsed" / filename
+    save_yaml(data, path)
     return path
 
 

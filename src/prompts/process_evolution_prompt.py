@@ -7,10 +7,13 @@ performs no reasoning and makes no LLM calls; it only prepares the
 context a future LLM-powered agent will consume.
 """
 
+import json
+
 import yaml
 
 from src.models.review_package import ProcessReviewEntry
 from src.models.technology import Process, Technology
+from src.prompts.schema_skeleton import build_json_skeleton
 
 SECTION_SEPARATOR = "=" * 70
 
@@ -77,15 +80,26 @@ def build_process_evolution_prompt(
         "Develop target-scale process and foreground inventory assumptions "
         "for the laboratory process shown above.\n\n"
         f"The target production scale is: {technology.target_state.scale}\n\n"
-        "Use the supplied engineering knowledge where appropriate. Complete "
-        "only the supplied review entry for this process. Preserve the "
-        "existing schema of the review entry exactly: do not create any "
-        "additional fields. Do not modify any other process."
+        "Use the supplied engineering knowledge where appropriate. Populate "
+        "every field of the JSON structure shown in EXPECTED OUTPUT below "
+        "for this process (process_id and process_name should match the "
+        "laboratory process shown above). Preserve the hierarchy exactly. "
+        "Do not modify any other process."
     )
 
+    skeleton = build_json_skeleton(ProcessReviewEntry)
     expected_output = (
-        "Return the supplied ProcessReviewEntry with all applicable fields "
-        "completed while preserving the existing schema."
+        "Below is the exact JSON structure expected. Copy this structure "
+        "exactly. Populate values only.\n\n"
+        "Do not:\n"
+        "- rename fields\n"
+        "- remove fields\n"
+        "- add fields\n"
+        "- replace nested objects with strings\n"
+        "- replace lists with dictionaries\n\n"
+        "Return ONLY valid JSON. Do not include markdown, explanations, or "
+        "code fences.\n\n"
+        f"{json.dumps(skeleton, indent=2)}"
     )
 
     sections = [
@@ -93,9 +107,6 @@ def build_process_evolution_prompt(
         _section("AVAILABLE KNOWLEDGE", _format_available_knowledge(skills)),
         _section("TECHNOLOGY OVERVIEW", _format_technology_overview(technology)),
         _section("CURRENT LABORATORY PROCESS", _dump(process.model_dump())),
-        _section(
-            "CURRENT REVIEW ENTRY", _dump(process_review_entry.model_dump())
-        ),
         _section("TASK", task),
         _section("EXPECTED OUTPUT", expected_output),
     ]

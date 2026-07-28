@@ -13,19 +13,23 @@ orchestrator's Process Evolution Stage owns that iteration and never the
 agent itself.
 
 Current milestone:
-    Orchestrator's Process Evolution Stage loops over every laboratory
-    process, calling this agent once per process:
-        Agent -> build prompt -> invoke LLM -> persist input/prompt/
-        response -> return the ProcessReviewEntry unchanged
+    Agent -> build prompt -> invoke LLM -> persist raw response -> parse
+    JSON -> validate into ProcessReviewEntry -> persist parsed entry ->
+    return the validated ProcessReviewEntry
 
-    The raw LLM response is persisted but never parsed, and the
-    ProcessReviewEntry is not updated yet.
+    The LLM is instructed (via the prompt) to return only JSON matching
+    the existing ProcessReviewEntry schema. That JSON is parsed with
+    `json.loads()` and validated with `ProcessReviewEntry.model_validate()`
+    — no manual field mapping. If parsing or validation fails, the
+    exception is raised as-is (after the raw response has already been
+    saved for debugging); the response is never repaired or retried.
 
 Future milestone:
-    Agent -> build prompt -> invoke LLM -> parse response -> return an
-    updated ProcessReviewEntry.
+    Confidence estimation, retries, and human review of low-confidence
+    assumptions.
 """
 
+import json
 import re
 from pathlib import Path
 from typing import Any, Callable
@@ -33,7 +37,13 @@ from typing import Any, Callable
 from src.models.review_package import ProcessReviewEntry
 from src.models.technology import Process, Technology
 from src.prompts.process_evolution_prompt import build_process_evolution_prompt
-from src.tools.output_writer import append_log, save_input, save_prompt, save_response
+from src.tools.output_writer import (
+    append_log,
+    save_input,
+    save_parsed,
+    save_prompt,
+    save_response,
+)
 
 
 def _slugify(text: str | None) -> str:
@@ -47,9 +57,9 @@ class ProcessEvolutionAgent:
 
     Shared Stage 1 skills, an LLM callable, and the case's output
     directory are provided by the orchestrator during construction. The
-    current implementation builds the prompt, invokes the LLM, and
-    persists the input/prompt/response as execution artifacts, but
-    performs no parsing or reasoning over the response.
+    current implementation builds the prompt, invokes the LLM, persists
+    the input/prompt/response/parsed artifacts, and validates the raw
+    JSON response into a `ProcessReviewEntry` using Pydantic.
     """
 
     def __init__(
@@ -80,7 +90,7 @@ class ProcessEvolutionAgent:
         process: Process,
         process_review_entry: ProcessReviewEntry,
     ) -> ProcessReviewEntry:
-        """Build the prompt, invoke the LLM, and persist the artifacts.
+        """Build the prompt, invoke the LLM, and return a validated entry.
 
         Parameters
         ----------
@@ -95,8 +105,11 @@ class ProcessEvolutionAgent:
         Returns
         -------
         ProcessReviewEntry
-            The entry for this process, unchanged (the response is not
-            parsed yet).
+            The LLM's response, parsed as JSON and validated into a
+            `ProcessReviewEntry`. Raises `json.JSONDecodeError` or a
+            Pydantic `ValidationError` if the response is not valid JSON
+            matching the expected schema; the response is never repaired
+            or retried.
         """
         print(f"Running Process Evolution Agent for process '{process.id}'...")
 
@@ -117,8 +130,10 @@ class ProcessEvolutionAgent:
         save_response(self.case_directory, f"{stem}.txt", response)
         append_log(self.case_directory, "Response saved")
 
-        # TODO:
-        # Parse `response` and use it to populate and return an updated
-        # ProcessReviewEntry.
+        validated_entry = ProcessReviewEntry.model_validate(json.loads(response))
+        append_log(self.case_directory, "Response validated")
 
-        return process_review_entry
+        save_parsed(self.case_directory, f"{stem}.yaml", validated_entry.model_dump())
+        append_log(self.case_directory, "Parsed entry saved")
+
+        return validated_entry

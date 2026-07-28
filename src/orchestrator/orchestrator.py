@@ -15,7 +15,11 @@ The agents themselves never coordinate workflow: the Process Evolution
 Agent reasons about exactly one laboratory process per call and knows
 nothing about the other processes or the overall ReviewPackage; the
 Scientific Review Agent reviews the completed ReviewPackage exactly once
-and knows nothing about how it was produced.
+and knows nothing about how it was produced. Each agent returns a
+validated Pydantic model (a `ProcessReviewEntry` or `ReviewPackage`)
+parsed from the LLM's JSON response, never a raw string — the internal
+working representation of the workflow is entirely Pydantic models, and
+JSON is only the transport format between the LLM and the framework.
 
 Both stages are represented as LangGraph nodes.
 Each stage coordinates one part of the workflow while delegating the
@@ -31,7 +35,7 @@ from src.models.review_package import ProcessReviewEntry, ReviewPackage
 from src.models.technology import Technology
 from src.orchestrator.graph_builder import build_graph
 from src.state.graph_state import GraphState
-from src.tools.output_writer import append_log
+from src.tools.output_writer import append_log, save_parsed
 from src.tools.skill_loader import load_skills
 from src.tools.yaml_loader import load_yaml
 
@@ -65,7 +69,9 @@ def _run_process_evolution_stage(
     Loops over every laboratory process in `technology`, invoking the
     Process Evolution Agent once per process, and replaces the
     corresponding entry inside the ReviewPackage with the entry the
-    agent returns. The agent itself has no knowledge of this loop.
+    agent returns. The agent itself has no knowledge of this loop. After
+    each process, the current state of the ReviewPackage is persisted to
+    `outputs/parsed/review_package.yaml` so it can be inspected mid-run.
     """
     technology = state["technology"]
     review_package = state["review_package"]
@@ -79,6 +85,9 @@ def _run_process_evolution_stage(
         index = entry_index_by_process_id[process.id]
         review_package.processes[index] = agent(
             technology, process, review_package.processes[index]
+        )
+        save_parsed(
+            agent.case_directory, "review_package.yaml", review_package.model_dump()
         )
 
     return {"technology": technology, "review_package": review_package}
