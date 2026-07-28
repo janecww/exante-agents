@@ -1,41 +1,38 @@
-"""Process Evolution Agent node for the Stage 1 LangGraph workflow.
+"""Process Evolution Agent for the Stage 1 pLCA-agents workflow.
 
 The Process Evolution Agent develops prospective industrial process and
 foreground inventory assumptions from laboratory-scale technologies.
 Shared Stage 1 skills and an LLM client are injected by the orchestrator
-during construction rather than loaded by the agent itself. The class
-implements ``__call__`` so an instance can be registered directly as a
-LangGraph node.
+during construction rather than loaded by the agent itself.
+
+The agent reasons about exactly one laboratory process per call. It has
+no knowledge of the overall workflow, the other laboratory processes, or
+how its result is assembled into the shared ReviewPackage — the
+orchestrator's Process Evolution Stage owns that iteration and never the
+agent itself.
 
 Current milestone:
-    Agent -> build prompt -> print prompt -> return unchanged state
+    Orchestrator's Process Evolution Stage loops over every laboratory
+    process, calling this agent once per process:
+        Agent -> build prompt -> print prompt -> return the
+        ProcessReviewEntry unchanged
 
-    The agent extracts `technology` from GraphState, builds a prompt via
-    `build_process_evolution_prompt`, prints it, and returns the incoming
-    GraphState unchanged. The LLM is injected but is not invoked yet.
+    The LLM is injected but is not invoked yet.
 
 Future milestone:
-    Agent -> build prompt -> invoke LLM -> update ReviewPackage -> return
-    updated state
-
-    1. The orchestrator will be refactored to iterate over each
-       laboratory process and pass the corresponding ProcessReviewEntry
-       to this agent, instead of the placeholder used here.
-    2. Prompt printing will be replaced with an actual LLM invocation.
-    3. The LLM's structured output will be used to populate the
-       ReviewPackage carried in GraphState.
+    Agent -> build prompt -> invoke LLM -> parse response -> return an
+    updated ProcessReviewEntry.
 """
 
 from typing import Any
 
 from src.models.review_package import ProcessReviewEntry
-from src.models.technology import Process
+from src.models.technology import Process, Technology
 from src.prompts.process_evolution_prompt import build_process_evolution_prompt
-from src.state.graph_state import GraphState
 
 
 class ProcessEvolutionAgent:
-    """Process Evolution Agent: builds and prints its LLM prompt.
+    """Process Evolution Agent: reasons about exactly one process.
 
     Shared Stage 1 skills and an LLM client are provided by the
     orchestrator during construction. The current implementation builds
@@ -56,31 +53,31 @@ class ProcessEvolutionAgent:
         self.llm = llm
         self.skills = skills
 
-    def __call__(self, state: GraphState) -> GraphState:
-        """Build and print the Process Evolution prompt for one process.
+    def __call__(
+        self,
+        technology: Technology,
+        process: Process,
+        process_review_entry: ProcessReviewEntry,
+    ) -> ProcessReviewEntry:
+        """Build and print the prompt for one laboratory process.
 
         Parameters
         ----------
-        state
-            Shared workflow state.
+        technology
+            The full Technology model for the case.
+        process
+            The single laboratory-scale process to reason about.
+        process_review_entry
+            The ProcessReviewEntry section of the shared ReviewPackage
+            that this agent is responsible for completing.
 
         Returns
         -------
-        GraphState
-            The unchanged workflow state.
+        ProcessReviewEntry
+            The entry for this process (currently unchanged, since no
+            LLM is invoked yet).
         """
-        print("Running Process Evolution Agent...")
-
-        technology = state["technology"]
-
-        # TODO: the orchestrator will be refactored to iterate over each
-        # laboratory process and pass the corresponding process and
-        # ProcessReviewEntry to this agent. Until then, use the first
-        # laboratory process (if any) as a placeholder.
-        process = technology.processes[0] if technology.processes else Process()
-        process_review_entry = ProcessReviewEntry(
-            process_id=process.id, process_name=process.name
-        )
+        print(f"Running Process Evolution Agent for process '{process.id}'...")
 
         prompt = build_process_evolution_prompt(
             technology, process, process_review_entry, self.skills
@@ -89,7 +86,7 @@ class ProcessEvolutionAgent:
 
         # TODO:
         # response = self.llm.invoke(prompt)
-        # Parse `response` and use it to populate the ProcessReviewEntry,
-        # then update `state["review_package"]` accordingly.
+        # Parse `response` and use it to populate and return an updated
+        # ProcessReviewEntry.
 
-        return state
+        return process_review_entry

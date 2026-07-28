@@ -1,9 +1,11 @@
 """LangGraph topology construction for the Stage 1 workflow.
 
 This module owns only the workflow topology: registering nodes, wiring
-edges, and compiling the graph. It receives fully constructed agent
-instances from the orchestrator and has no knowledge of how those agents
-are built or where their dependencies (e.g. shared skills) come from.
+edges, and compiling the graph. Each node represents one workflow stage
+(a `GraphState -> GraphState` callable) supplied by the orchestrator; this
+module has no knowledge of what a stage does internally (e.g. that the
+Process Evolution Stage loops over every laboratory process, or where
+agent dependencies such as shared skills come from).
 """
 
 from pathlib import Path
@@ -14,24 +16,24 @@ from langgraph.graph.state import CompiledStateGraph
 
 from src.state.graph_state import GraphState
 
-AgentCallable = Callable[[GraphState], GraphState]
+StageCallable = Callable[[GraphState], GraphState]
 
 
 def build_graph(
-    process_agent: AgentCallable,
-    review_agent: AgentCallable,
+    process_evolution_stage: StageCallable,
+    scientific_review_stage: StageCallable,
 ) -> CompiledStateGraph:
     """Build and compile the Stage 1 workflow graph.
 
-    Workflow: START -> Process Evolution Agent -> Scientific Review Agent -> END
+    Workflow: START -> Process Evolution Stage -> Scientific Review Stage -> END
 
-    `process_agent` and `review_agent` are fully constructed, callable
-    agent instances (e.g. `ProcessEvolutionAgent`/`ScientificReviewAgent`)
-    registered directly as LangGraph nodes.
+    `process_evolution_stage` and `scientific_review_stage` are fully
+    constructed `GraphState -> GraphState` callables, registered directly
+    as LangGraph nodes.
     """
     graph = StateGraph(GraphState)
-    graph.add_node("process_evolution", process_agent)
-    graph.add_node("scientific_review", review_agent)
+    graph.add_node("process_evolution", process_evolution_stage)
+    graph.add_node("scientific_review", scientific_review_stage)
 
     graph.add_edge(START, "process_evolution")
     graph.add_edge("process_evolution", "scientific_review")

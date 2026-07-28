@@ -1,41 +1,38 @@
-"""Scientific Review Agent node for the Stage 1 LangGraph workflow.
+"""Scientific Review Agent for the Stage 1 pLCA-agents workflow.
 
 The Scientific Review Agent evaluates proposed process and inventory
 assumptions for completeness, plausibility, traceability, and scientific
 justification. Shared Stage 1 skills and an LLM client are injected by
 the orchestrator during construction rather than loaded by the agent
-itself. The class implements ``__call__`` so an instance can be
-registered directly as a LangGraph node.
+itself.
+
+The agent reviews the completed ReviewPackage exactly once per call. It
+has no knowledge of how the ReviewPackage was produced — the
+orchestrator's Process Evolution Stage owns that iteration, not this
+agent.
 
 Current milestone:
-    Agent -> build prompt -> print prompt -> return unchanged state
+    Orchestrator's Scientific Review Stage calls this agent once, after
+    every laboratory process has been processed:
+        Agent -> build prompt -> print prompt -> return the ReviewPackage
+        unchanged
 
-    The agent extracts `technology` and `review_package` from GraphState,
-    builds a prompt via `build_scientific_review_prompt`, prints it, and
-    returns the incoming GraphState unchanged. The LLM is injected but is
-    not invoked yet.
+    The LLM is injected but is not invoked yet.
 
 Future milestone:
-    Agent -> build prompt -> invoke LLM -> update ReviewPackage -> return
-    updated state
-
-    1. The orchestrator will be refactored to iterate over each
-       laboratory process's ProcessReviewEntry instead of the empty
-       placeholder ReviewPackage used here.
-    2. Prompt printing will be replaced with an actual LLM invocation.
-    3. The LLM's structured output will be used to populate the
-       review_comments in the ReviewPackage carried in GraphState.
+    Agent -> build prompt -> invoke LLM -> parse response -> return an
+    updated ReviewPackage with review_comments populated.
 """
 
 from typing import Any
 
 from src.models.review_package import ReviewPackage
+from src.models.technology import Technology
 from src.prompts.scientific_review_prompt import build_scientific_review_prompt
-from src.state.graph_state import GraphState
 
 
 class ScientificReviewAgent:
-    """Scientific Review Agent: builds and prints its LLM prompt.
+    """Scientific Review Agent: reviews the completed ReviewPackage once.
 
     Shared Stage 1 skills and an LLM client are provided by the
     orchestrator during construction. The current implementation builds
@@ -56,34 +53,25 @@ class ScientificReviewAgent:
         self.llm = llm
         self.skills = skills
 
-    def __call__(self, state: GraphState) -> GraphState:
-        """Build and print the Scientific Review prompt for the package.
+    def __call__(
+        self, technology: Technology, review_package: ReviewPackage
+    ) -> ReviewPackage:
+        """Build and print the review prompt for the completed package.
 
         Parameters
         ----------
-        state
-            Shared workflow state.
+        technology
+            The full Technology model for the case.
+        review_package
+            The completed ReviewPackage to review.
 
         Returns
         -------
-        GraphState
-            The unchanged workflow state.
+        ReviewPackage
+            The review package (currently unchanged, since no LLM is
+            invoked yet).
         """
         print("Running Scientific Review Agent...")
-
-        technology = state["technology"]
-
-        # TODO: the orchestrator will be refactored to construct the
-        # ReviewPackage as the Process Evolution Agent completes each
-        # ProcessReviewEntry. Until then, GraphState's review_package is
-        # still None, so build an empty placeholder here.
-        review_package = state["review_package"] or ReviewPackage(
-            technology={
-                "name": technology.technology.name,
-                "functional_unit": technology.technology.functional_unit,
-                "target_scale": technology.target_state.scale,
-            }
-        )
 
         prompt = build_scientific_review_prompt(
             technology, review_package, self.skills
@@ -92,7 +80,7 @@ class ScientificReviewAgent:
 
         # TODO:
         # response = self.llm.invoke(prompt)
-        # Parse `response` and use it to populate review_comments in the
-        # ReviewPackage, then update `state["review_package"]` accordingly.
+        # Parse `response` and use it to populate review_comments, then
+        # return an updated ReviewPackage.
 
-        return state
+        return review_package
