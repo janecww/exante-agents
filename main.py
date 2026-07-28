@@ -8,7 +8,12 @@ workflow graph.
 Business logic should NOT be implemented here.
 """
 
+import sys
 from pathlib import Path
+
+# Ensure prompts containing non-ASCII characters (e.g. equations in the
+# skill files) print correctly regardless of the terminal's codepage.
+sys.stdout.reconfigure(encoding="utf-8")
 
 from src.agents.process_evolution import ProcessEvolutionAgent
 from src.agents.scientific_review import ScientificReviewAgent
@@ -23,7 +28,9 @@ def main() -> None:
 
     print("Saving workflow visualization...")
     try:
-        visualization_graph = build_graph(ProcessEvolutionAgent({}), ScientificReviewAgent({}))
+        visualization_graph = build_graph(
+            ProcessEvolutionAgent(None, {}), ScientificReviewAgent(None, {})
+        )
         output_path = export_graph(visualization_graph, CASE_DIR / "outputs" / "workflow.png")
         print(f"Workflow visualization saved to {output_path}")
     except Exception as exc:

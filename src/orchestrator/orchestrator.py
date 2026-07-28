@@ -42,8 +42,9 @@ def run(case_directory: str | Path) -> GraphState:
         "review_package": None,
     }
 
-    process_agent = ProcessEvolutionAgent(skills)
-    review_agent = ScientificReviewAgent(skills)
+    # TODO: inject a real LLM client once agents invoke the LLM.
+    process_agent = ProcessEvolutionAgent(None, skills)
+    review_agent = ScientificReviewAgent(None, skills)
 
     print("Building LangGraph...")
     graph = build_graph(process_agent, review_agent)
