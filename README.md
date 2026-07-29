@@ -1,81 +1,213 @@
 # pLCA-agents
 
-AI-assisted prospective Life Cycle Assessment (pLCA) with human-in-the-loop expert review.
+Human-in-the-loop multi-agent framework for prospective Life Cycle Assessment (pLCA).
 
-## Demo case study
+---
 
-Brown seaweed-based bioplastic at 4,000 tonnes/year production capacity.
+# Overview
 
-## Setup
+This repository implements the **Stage 1 Proof of Concept (POC)** of a human-in-the-loop multi-agent framework for prospective Life Cycle Assessment (LCA).
 
-```bash
-pip install -r requirements.txt
-cp .env.example .env   # fill in your OPENROUTER_API_KEY
+Instead of directly generating a foreground Life Cycle Inventory (LCI), the framework assists LCA practitioners by developing scientifically justified process and foreground inventory assumptions that can be reviewed by experts before engineering calculations are performed.
+
+The current implementation produces a structured review package for expert review.
+
+For the detailed system architecture and design rationale, see **ARCHITECTURE.md**.
+
+---
+
+# Current Status
+
+Implemented
+
+- ✅ Technology input loading
+- ✅ Process Evolution Agent
+- ✅ Scientific Review Agent
+- ✅ Structured review package generation (`review_package.yaml`)
+- ✅ Manual Excel review package export (`review_package.xlsx`)
+
+Planned
+
+- Human review integration
+- Human feedback interpretation
+- Engineering calculations
+- Foreground LCI generation
+- Stage 2 workflow
+
+---
+
+# Repository Structure
+
+```text
+src/
+
+    agents/
+    orchestrator/
+    prompts/
+    skills/
+    schemas/
+    models/
+    state/
+    tools/
+
+tests/
+
+cases/
+
+main.py
 ```
 
-## Run
+---
+
+# Getting Started
+
+## 1. Prepare a case
+
+Each execution is organised as a case under the `cases/` directory.
+
+Example
+
+```text
+cases/
+
+    starch_nanocrystals/
+
+        technology.yaml          # Required
+
+        references/              # Optional supporting documents
+
+            paper_1.pdf
+            supplementary.pdf
+
+        outputs/                 # Generated automatically
+
+            inputs/
+            prompts/
+            responses/
+            parsed/
+            logs/
+```
+
+### Required input
+
+Every case must contain
+
+```text
+technology.yaml
+```
+
+This file defines:
+
+- technology information
+- laboratory workflow
+- laboratory inventory
+- target production scale
+- functional unit
+
+### Optional input
+
+Supporting documents may be placed under
+
+```text
+references/
+```
+
+Examples include
+
+- Peer-reviewed journal articles
+- Technical reports
+- Patents
+- Experimental reports
+- Supplementary information
+
+If provided, these documents are treated as the highest-priority evidence source during assumption development.
+
+---
+
+## 2. Run Stage 1
+
+Execute
 
 ```bash
 python main.py
 ```
 
-## Workflow
+Execution artifacts are automatically generated under
 
+```text
+cases/<case_name>/outputs/
+
+    inputs/
+    prompts/
+    responses/
+    parsed/
+    logs/
 ```
-Scope Agent → Assumption Agent → Uncertainty Agent → [Human Review] → Inventory Agent
+
+The final structured output is
+
+```text
+parsed/review_package.yaml
 ```
 
-| Step | What happens |
-|---|---|
-| **Scope Agent** | Defines functional unit, system boundary, foreground/background processes, and key parameters |
-| **Assumption Agent** | Generates quantitative assumptions with values, units, analogies, and evidence |
-| **Uncertainty Agent** | Evaluates confidence (0–1) for each assumption; flags those needing expert review |
-| **Human Review** | Pauses workflow for any assumption with confidence < 0.6 or `expert_review_required = true` |
-| **Inventory Agent** | Compiles final prospective inventory table from approved assumptions |
+---
 
-## Human review
+## 3. Generate the Excel review package
 
-For each flagged assumption the terminal shows:
+The Excel export utility is currently **temporary** and is **not yet integrated into the LangGraph workflow**.
 
-- Proposed value and unit
-- Confidence score and justification
-- Rationale and analogy used
-- Supporting evidence
+After Stage 1 completes successfully, manually execute
 
-You choose: **[A]pprove**, **[R]evise** (enter new value), or **[X] Reject**.  
-Rejected assumptions are excluded from the inventory. The workflow does not proceed until all flagged assumptions are resolved.
+```bash
+python src/tools/export_review_package.py
+```
 
-## Outputs
+This converts
 
-All outputs are timestamped with the run ID (`YYYYMMDD_HHMMSS`).
+```text
+parsed/review_package.yaml
+```
 
-| File | Description |
-|---|---|
-| `outputs/logs/run_<id>.log` | Full execution log |
-| `outputs/logs/workflow_state_<id>.json` | Complete workflow state (all agent outputs + decisions) |
-| `outputs/inventory/assumption_register_<id>.json` | Assumption register with traceability (JSON) |
-| `outputs/inventory/assumption_register_<id>.csv` | Assumption register (CSV) |
-| `outputs/inventory/inventory_<id>.csv` | Final prospective inventory table (CSV) |
+into
 
-## Assumption register fields
+```text
+review_package.xlsx
+```
 
-| Field | Description |
-|---|---|
-| `parameter` | Name of the inventory parameter |
-| `value` | Final approved value (revised if expert changed it) |
-| `unit` | Unit of measurement |
-| `evidence` | Supporting literature or data source |
-| `analogy` | Analogous technology used as proxy |
-| `confidence` | Confidence score 0.0–1.0 |
-| `expert_review_required` | Whether expert review was triggered |
-| `expert_decision` | `approved`, `revised`, `rejected`, or blank |
+for expert review.
 
-## Configuration
+Automatic export will be integrated into the orchestrator in a future milestone.
 
-Edit `main.py` to change the technology description or production scale.  
-The confidence threshold (default 0.6) is set in `harness/orchestrator.py`.
+---
 
+# Design Principles
 
-## Notes
-Run "python -m venv venv"
-Run ".\venv\Scripts\Activate.ps1"
+The framework follows five core principles:
+
+- Human-in-the-loop decision making
+- Structured reasoning
+- Schema validation
+- Modular architecture
+- Extensibility
+
+---
+
+# Future Development
+
+Stage 2 will extend the framework with:
+
+- Human review integration
+- Human feedback interpretation
+- Review Integration Agent
+- Engineering calculations
+- Material balance validation
+- Energy balance validation
+- Unit consistency validation
+- Foreground LCI generation
+
+---
+
+# Documentation
+
+- **ARCHITECTURE.md** — System architecture and design rationale
+- **cases/** — Example case studies
