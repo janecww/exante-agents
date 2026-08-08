@@ -1,16 +1,19 @@
 """LangGraph topology construction for the Stage 1 workflow.
 
 This module owns only the workflow topology: registering nodes, wiring
-edges, and compiling the graph. Each node represents one workflow stage
-(a `GraphState -> GraphState` callable) supplied by the orchestrator; this
-module has no knowledge of what a stage does internally (e.g. that the
-Process Evolution Stage loops over every laboratory process, or where
-agent dependencies such as shared skills come from).
+edges, and compiling the graph (optionally with a checkpointer for
+Human-in-the-Loop interruption). Each node represents one workflow
+stage (a `GraphState -> GraphState` callable) supplied by the
+orchestrator; this module has no knowledge of what a stage does
+internally (e.g. that the Human Review Stage calls LangGraph's
+`interrupt()`, or where agent dependencies such as shared skills come
+from).
 """
 
 from pathlib import Path
 from typing import Callable
 
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
@@ -20,26 +23,62 @@ StageCallable = Callable[[GraphState], GraphState]
 
 
 def build_graph(
-    process_evolution_stage: StageCallable,
-    scientific_review_stage: StageCallable,
+    inventory_classification_stage: StageCallable,
+    export_workbook_stage: StageCallable,
+    human_review_stage: StageCallable,
+    import_confirmed_inventory_stage: StageCallable,
+    estimation_recommendation_stage: StageCallable,
+    export_recommendations_stage: StageCallable,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> CompiledStateGraph:
     """Build and compile the Stage 1 workflow graph.
 
-    Workflow: START -> Process Evolution Stage -> Scientific Review Stage -> END
+    Workflow:
+        START
+        -> Inventory Classification Stage
+        -> Export Workbook Stage (Worksheet 1)
+        -> Human Review Stage (interrupts here)
+        -> Import Confirmed Inventory Stage
+        -> Estimation Recommendation Stage
+        -> Export Recommendations Stage (Worksheet 2)
+        -> END
 
-    `process_evolution_stage` and `scientific_review_stage` are fully
-    constructed `GraphState -> GraphState` callables, registered directly
-    as LangGraph nodes.
+    Every stage is a fully constructed `GraphState -> GraphState`
+    callable, registered directly as a LangGraph node. Human Review is
+    deliberately its own node containing nothing but the interrupt:
+    LangGraph reruns an interrupted node from the top on resume, so
+    keeping Export Workbook as a separate, already-completed node
+    guarantees the workbook is written exactly once and is never
+    overwritten (destroying the human's edits) when the workflow
+    resumes. Estimation Recommendation and Export Recommendations
+    follow the same reasoning/export split as Inventory Classification
+    and Export Workbook -- ready for a future Human Review interrupt to
+    be inserted after Export Recommendations without restructuring
+    either node.
+
+    `checkpointer` persists graph state so the workflow can be
+    interrupted in one process and resumed from a separate one later
+    (see `src.orchestrator.orchestrator`). Passing `None` (the default)
+    compiles an uncheckpointed graph, which is sufficient for
+    topology-only uses such as visualization export.
     """
     graph = StateGraph(GraphState)
-    graph.add_node("process_evolution", process_evolution_stage)
-    graph.add_node("scientific_review", scientific_review_stage)
+    graph.add_node("inventory_classification", inventory_classification_stage)
+    graph.add_node("export_workbook", export_workbook_stage)
+    graph.add_node("human_review", human_review_stage)
+    graph.add_node("import_confirmed_inventory", import_confirmed_inventory_stage)
+    graph.add_node("estimation_recommendation", estimation_recommendation_stage)
+    graph.add_node("export_recommendations", export_recommendations_stage)
 
-    graph.add_edge(START, "process_evolution")
-    graph.add_edge("process_evolution", "scientific_review")
-    graph.add_edge("scientific_review", END)
+    graph.add_edge(START, "inventory_classification")
+    graph.add_edge("inventory_classification", "export_workbook")
+    graph.add_edge("export_workbook", "human_review")
+    graph.add_edge("human_review", "import_confirmed_inventory")
+    graph.add_edge("import_confirmed_inventory", "estimation_recommendation")
+    graph.add_edge("estimation_recommendation", "export_recommendations")
+    graph.add_edge("export_recommendations", END)
 
-    return graph.compile()
+    return graph.compile(checkpointer=checkpointer)
 
 
 def export_graph(graph: CompiledStateGraph, output_path: str | Path) -> Path:

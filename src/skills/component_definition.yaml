@@ -1,0 +1,51 @@
+version: 1.0
+
+description: >
+  Definitions of foreground inventory component categories used for
+  inventory classification prior to estimation method retrieval.
+
+scope: >
+  These component categories are intentionally limited to the current
+  proof-of-concept and may be extended in future versions.
+
+components:
+
+  reactant:
+    definition: >
+      A material intentionally consumed or chemically transformed during
+      the process to produce the desired product.
+
+  solvent:
+    definition: >
+      A material primarily used as the reaction, extraction, washing, or
+      separation medium and not intended to become part of the final product.
+
+  catalyst:
+    definition: >
+      A material that facilitates a chemical reaction without being
+      intentionally consumed and may be recovered or reused.
+
+  energy:
+    definition: >
+      Electrical energy consumed to operate process equipment such as
+      mixers, stirrers, pumps, centrifuges, homogenisers, ultrasonic
+      devices, and other machinery. For this proof-of-concept, "energy"
+      refers specifically to electrical energy rather than thermal energy.
+
+  heat:
+    definition: >
+      Thermal energy supplied to or removed from the process for heating
+      or cooling operations, including steam, hot oil, chilled water,
+      refrigeration, and other thermal utilities.
+
+classification_guidance:
+
+  - Classify inventories according to their primary function within the process rather than their chemical identity.
+
+  - Consider both the inventory name and the process context.
+
+  - Assign exactly one component category to each inventory.
+
+  - If multiple categories are plausible, select the most appropriate category and explain why human verification is recommended.
+
+  - Do not infer the estimation method during classification; only determine the component category.

@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Architecture.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="architecturemd">ARCHITECTURE.md</h1>
+<h1 id="stage-1-proof-of-concept-poc">Stage 1 Proof of Concept (POC)</h1>
+<h2 id="human-in-the-loop-multi-agent-framework-for-prospective-lca-assumption-development">Human-in-the-Loop Multi-Agent Framework for Prospective LCA Assumption Development</h2>
+<hr>
+<h1 id="1-purpose">1. Purpose</h1>
+<p>This repository implements the Stage 1 Proof of Concept (POC) of a human-in-the-loop multi-agent framework for prospective Life Cycle Assessment (LCA).</p>
+<p>The objective of Stage 1 is <strong>not</strong> to generate a complete foreground Life Cycle Inventory (LCI).</p>
+<p>Instead, Stage 1 assists LCA practitioners in developing scientifically justified process and inventory assumptions that can subsequently be reviewed by experts before engineering calculations are performed.</p>
+<p>The framework currently terminates by producing a structured review package for expert review.</p>
+<hr>
+<h1 id="2-scope">2. Scope</h1>
+<h2 id="included">Included</h2>
+<ul>
+<li>Technology understanding</li>
+<li>Process assumption development</li>
+<li>Target-scale foreground inventory assumption development</li>
+<li>Estimation method recommendation</li>
+<li>Scientific review of assumptions</li>
+<li>Structured review package generation</li>
+</ul>
+<h2 id="excluded-future-stage">Excluded (Future Stage)</h2>
+<ul>
+<li>Human feedback integration</li>
+<li>Engineering calculations</li>
+<li>Foreground LCI generation</li>
+<li>Material balance validation</li>
+<li>Energy balance validation</li>
+<li>Unit consistency validation</li>
+<li>Background database integration</li>
+</ul>
+<hr>
+<h1 id="3-overall-workflow">3. Overall Workflow</h1>
+<pre class="hljs"><code><div>                         Orchestrator
+                              │
+        ┌─────────────────────┼─────────────────────┐
+        │                     │                     │
+        ▼                     ▼                     ▼
+     Skills                Agents                Shared Tools
+                              │
+                              ▼
+                    technology.yaml
+                              │
+                              ▼
+                 Process Evolution Agent
+                              │
+                              ▼
+             review_package.yaml (draft)
+                              │
+                              ▼
+                Scientific Review Agent
+                              │
+                              ▼
+           review_package.yaml (reviewed)
+                              │
+                              ▼
+             Export Review Package Tool
+                    (manual execution)
+                              │
+                              ▼
+                  review_package.xlsx
+                              │
+                              ▼
+                    Human Reviewer
+</div></code></pre>
+<p>Stage 1 currently terminates after the reviewed structured package is generated.</p>
+<p>The YAML file is the framework's internal working format.</p>
+<p>The Excel workbook is a human-readable representation generated for expert review.</p>
+<p><strong>Current implementation note</strong></p>
+<p>The review package export utility currently exists as a standalone script for validation purposes.</p>
+<p>It is <strong>not yet integrated into the LangGraph workflow</strong> and must currently be executed manually after Stage 1 has completed.</p>
+<p>Automatic export by the orchestrator is planned for a future milestone.</p>
+<hr>
+<h1 id="4-data-flow">4. Data Flow</h1>
+<p>Stage 1 transforms information through several structured representations.</p>
+<pre class="hljs"><code><div>User
+│
+├── technology.yaml
+├── reference documents
+│
+▼
+YAML Loader
+│
+▼
+Pydantic Models
+(Technology, ReviewPackage)
+│
+▼
+LangGraph State
+│
+▼
+Process Evolution Agent
+│
+▼
+LLM Prompt
+│
+▼
+Structured JSON
+│
+▼
+Pydantic Validation
+│
+▼
+review_package.yaml (draft)
+│
+▼
+Scientific Review Agent
+│
+▼
+LLM Prompt
+│
+▼
+Structured JSON
+│
+▼
+Pydantic Validation
+│
+▼
+review_package.yaml (reviewed)
+│
+▼
+Export Review Package Tool
+(manual execution)
+│
+▼
+review_package.xlsx
+│
+▼
+Human Expert Review
+</div></code></pre>
+<h2 id="why-multiple-representations">Why multiple representations?</h2>
+<p>Different representations are used because they serve different purposes.</p>
+<table>
+<thead>
+<tr>
+<th>Representation</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>technology.yaml</strong></td>
+<td>User-provided case description and workflow input.</td>
+</tr>
+<tr>
+<td><strong>Pydantic models</strong></td>
+<td>Strongly typed in-memory representation used for validation and LangGraph state management.</td>
+</tr>
+<tr>
+<td><strong>LLM JSON</strong></td>
+<td>Communication protocol between the LLM and the application. The LLM is instructed to generate structured JSON matching predefined schemas.</td>
+</tr>
+<tr>
+<td><strong>Pydantic validation</strong></td>
+<td>Ensures every LLM response conforms to the expected schema before being accepted. Invalid outputs fail immediately rather than propagating through the workflow.</td>
+</tr>
+<tr>
+<td><strong>review_package.yaml</strong></td>
+<td>Canonical structured working format exchanged between agents and persisted by the framework.</td>
+</tr>
+<tr>
+<td><strong>review_package.xlsx</strong></td>
+<td>Human-readable review interface for domain experts.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="design-rationale">Design rationale</h2>
+<p>The framework intentionally follows the pipeline</p>
+<pre class="hljs"><code><div>LLM
+    ↓
+Structured JSON
+    ↓
+Pydantic Validation
+    ↓
+YAML
+    ↓
+Excel
+</div></code></pre>
+<p>rather than allowing agents to exchange free-text responses.</p>
+<p>This design provides several benefits:</p>
+<ul>
+<li>Enforces a fixed schema for every agent output.</li>
+<li>Prevents inconsistent field names or missing information.</li>
+<li>Detects malformed outputs immediately through schema validation.</li>
+<li>Ensures downstream agents always receive valid structured data.</li>
+<li>Separates reasoning (structured data) from presentation (Excel).</li>
+<li>Improves auditability, reproducibility, robustness, and extensibility.</li>
+</ul>
+<hr>
+<h1 id="5-design-philosophy">5. Design Philosophy</h1>
+<p>The framework follows four principles.</p>
+<h2 id="human-in-the-loop">Human-in-the-loop</h2>
+<p>The framework assists experts rather than replacing them.</p>
+<p>Final engineering decisions remain under expert control.</p>
+<hr>
+<h2 id="structured-reasoning">Structured reasoning</h2>
+<p>Agents communicate using structured schemas instead of free-text outputs.</p>
+<p>Intermediate outputs should be machine-readable and auditable.</p>
+<hr>
+<h2 id="modular-architecture">Modular architecture</h2>
+<p>Each component has a single responsibility.</p>
+<p>Reasoning, orchestration, skills, schemas and tools remain independent.</p>
+<hr>
+<h2 id="extensibility">Extensibility</h2>
+<p>Stage 2 should be implementable without redesigning Stage 1.</p>
+<hr>
+<h1 id="6-stage-1-components">6. Stage 1 Components</h1>
+<h2 id="process-evolution-agent">Process Evolution Agent</h2>
+<h3 id="responsibilities">Responsibilities</h3>
+<ul>
+<li>Interpret laboratory-scale processes</li>
+<li>Recommend target-scale process assumptions</li>
+<li>Recommend target-scale foreground inventory assumptions</li>
+<li>Recommend estimation methods</li>
+<li>Explain engineering rationale</li>
+<li>Cite supporting evidence</li>
+<li>Declare reasoning mode</li>
+</ul>
+<h3 id="output">Output</h3>
+<p><code>review_package.yaml</code> (draft)</p>
+<hr>
+<h2 id="scientific-review-agent">Scientific Review Agent</h2>
+<h3 id="responsibilities-1">Responsibilities</h3>
+<ul>
+<li>Review process assumptions</li>
+<li>Review inventory assumptions</li>
+<li>Assess completeness</li>
+<li>Assess plausibility</li>
+<li>Assess justification</li>
+<li>Assess traceability</li>
+<li>Assess transparency</li>
+<li>Assess uncertainty communication</li>
+<li>Recommend revisions</li>
+</ul>
+<p>The Scientific Review Agent evaluates whether assumptions are sufficiently justified for prospective LCA.</p>
+<p>It does <strong>not</strong> determine whether an assumption is &quot;correct&quot;.</p>
+<h3 id="output-1">Output</h3>
+<p><code>review_package.yaml</code> (reviewed)</p>
+<hr>
+<h2 id="orchestrator-langgraph">Orchestrator (LangGraph)</h2>
+<h3 id="responsibilities-2">Responsibilities</h3>
+<ul>
+<li>Load user inputs</li>
+<li>Load shared skills</li>
+<li>Maintain workflow state</li>
+<li>Execute agents</li>
+<li>Pass structured outputs between agents</li>
+<li>Invoke shared tools</li>
+<li>Coordinate Stage 1 execution</li>
+</ul>
+<p>The orchestrator currently <strong>does not invoke the review package export utility</strong>.</p>
+<hr>
+<h1 id="7-shared-skills">7. Shared Skills</h1>
+<p>Skills provide reusable reasoning guidance shared across multiple agents.</p>
+<p>Current skills include:</p>
+<ul>
+<li><code>review_specification.yaml</code></li>
+<li><code>source_priority.yaml</code></li>
+<li><code>engineering_heuristics.yaml</code></li>
+<li><code>estimation_methods.yaml</code></li>
+<li><code>process_evolution_examples.yaml</code></li>
+</ul>
+<p>Skills influence reasoning but do not execute deterministic operations.</p>
+<hr>
+<h1 id="8-shared-tools">8. Shared Tools</h1>
+<p>Tools perform deterministic operations and contain no reasoning.</p>
+<h2 id="current-tools">Current tools</h2>
+<ul>
+<li>YAML loader</li>
+<li>Output writer</li>
+<li>Logging</li>
+</ul>
+<h2 id="standalone-utilities">Standalone utilities</h2>
+<ul>
+<li>Review package export (<code>review_package.yaml → review_package.xlsx</code>)</li>
+</ul>
+<p>The export utility is currently intended for development and validation and is executed manually.</p>
+<p>Future versions will allow the orchestrator to invoke the export utility automatically.</p>
+<h2 id="future-tools">Future tools</h2>
+<ul>
+<li>Review package import (<code>review_package.xlsx → review_package.yaml</code>)</li>
+<li>Literature retrieval</li>
+<li>Engineering calculations</li>
+<li>Material balance validation</li>
+<li>Energy balance validation</li>
+<li>Unit consistency validation</li>
+</ul>
+<hr>
+<h1 id="9-evidence-hierarchy">9. Evidence Hierarchy</h1>
+<p>When multiple evidence sources are available, agents should prioritise them in the following order.</p>
+<ol>
+<li>User-provided documents</li>
+<li>Built-in engineering knowledge and provided reference materials</li>
+<li>Peer-reviewed literature</li>
+<li>Technical reports and standards</li>
+<li>Similar technology analogy</li>
+<li>General web resources</li>
+<li>LLM internal knowledge</li>
+</ol>
+<p>Higher-priority evidence should always be preferred whenever available.</p>
+<hr>
+<h1 id="10-reasoning-modes">10. Reasoning Modes</h1>
+<p>Every assumption should explicitly state how it was derived.</p>
+<p>Supported reasoning modes include:</p>
+<ul>
+<li>Direct evidence</li>
+<li>Engineering heuristic</li>
+<li>Similar technology analogy</li>
+<li>Literature synthesis</li>
+<li>Engineering judgement</li>
+<li>Conservative assumption</li>
+</ul>
+<p>Reasoning mode should always be transparent.</p>
+<hr>
+<h1 id="11-human-review-package">11. Human Review Package</h1>
+<p>The final deliverable of Stage 1 is a single editable review workbook generated from the reviewed <code>review_package.yaml</code>.</p>
+<p>Each process assumption is immediately followed by its associated inventory assumptions so reviewers can evaluate them together.</p>
+<p>Suggested columns include:</p>
+<ul>
+<li>Laboratory process</li>
+<li>Proposed target-scale process assumption</li>
+<li>Inventory flow</li>
+<li>Type (Input / Output)</li>
+<li>Recommended estimation method</li>
+<li>Engineering rationale</li>
+<li>Supporting evidence</li>
+<li>Reasoning mode</li>
+<li>Scientific review findings</li>
+<li>Expert revision</li>
+<li>Expert comments</li>
+</ul>
+<p>Future versions will allow the revised workbook to be imported back into the framework.</p>
+<hr>
+<h1 id="12-repository-structure">12. Repository Structure</h1>
+<pre class="hljs"><code><div>src/
+
+    agents/                    # Reasoning agents
+        process_evolution.py
+        scientific_review.py
+
+    orchestrator/              # LangGraph workflow orchestration
+        orchestrator.py
+
+    prompts/                   # Prompt templates
+
+    skills/                    # Reusable engineering knowledge
+        review_specification.yaml
+        source_priority.yaml
+        engineering_heuristics.yaml
+        estimation_methods.yaml
+        process_evolution_examples.yaml
+
+    schemas/                   # YAML schemas
+        technology.yaml
+        review_package.yaml
+
+    models/                    # Pydantic models
+        technology.py
+        review_package.py
+
+    state/                     # Shared LangGraph state
+        graph_state.py
+
+    tools/                     # Deterministic utilities
+        yaml_loader.py
+        output_writer.py
+        export_review_package.py
+
+tests/                         # Unit and integration tests
+
+cases/
+
+    starch_nanocrystals/
+
+        technology.yaml         # User-provided technology description
+
+        references/             # Supporting documents and literature
+
+        outputs/
+
+            inputs/             # Agent inputs
+            prompts/            # Prompts sent to the LLM
+            responses/          # Raw LLM responses
+            parsed/             # Validated YAML outputs
+            logs/               # Execution logs
+
+            review_package.xlsx # Manual export
+
+            workflow.png        # LangGraph workflow visualization
+
+main.py                        # Application entry point
+</div></code></pre>
+<p>Each folder has a single responsibility.</p>
+<ul>
+<li><strong>agents/</strong> — reasoning agents.</li>
+<li><strong>orchestrator/</strong> — LangGraph workflow orchestration.</li>
+<li><strong>prompts/</strong> — prompt templates for reasoning agents.</li>
+<li><strong>skills/</strong> — reusable engineering knowledge shared across agents.</li>
+<li><strong>schemas/</strong> — YAML schemas exchanged between components.</li>
+<li><strong>models/</strong> — Pydantic models used for validation.</li>
+<li><strong>tools/</strong> — deterministic utilities.</li>
+<li><strong>state/</strong> — shared LangGraph state.</li>
+<li><strong>tests/</strong> — unit and integration tests.</li>
+<li><strong>cases/</strong> — case-specific inputs, reference materials, execution artifacts, and generated review packages.</li>
+</ul>
+<hr>
+<h1 id="13-current-implementation-status">13. Current Implementation Status</h1>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th style="text-align:center">Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LangGraph orchestrator</td>
+<td style="text-align:center">✅ Implemented</td>
+</tr>
+<tr>
+<td>Process Evolution Agent</td>
+<td style="text-align:center">✅ Implemented</td>
+</tr>
+<tr>
+<td>Scientific Review Agent</td>
+<td style="text-align:center">✅ Implemented</td>
+</tr>
+<tr>
+<td>Structured review package (<code>review_package.yaml</code>)</td>
+<td style="text-align:center">✅ Implemented</td>
+</tr>
+<tr>
+<td>Excel review package export utility</td>
+<td style="text-align:center">✅ Implemented <em>(manual execution)</em></td>
+</tr>
+<tr>
+<td>Orchestrator-integrated Excel export</td>
+<td style="text-align:center">⏳ Planned</td>
+</tr>
+<tr>
+<td>Human expert review</td>
+<td style="text-align:center">⏳ Planned</td>
+</tr>
+<tr>
+<td>Review Integration Agent</td>
+<td style="text-align:center">⏳ Planned</td>
+</tr>
+<tr>
+<td>Engineering calculation tools</td>
+<td style="text-align:center">⏳ Planned</td>
+</tr>
+<tr>
+<td>Foreground LCI Generation Agent</td>
+<td style="text-align:center">⏳ Planned</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h1 id="14-development-principles">14. Development Principles</h1>
+<p>When implementing new functionality:</p>
+<ul>
+<li>Prefer structured schemas over free-text communication.</li>
+<li>Keep prompts focused on reasoning rather than storing knowledge.</li>
+<li>Externalise reusable knowledge into shared skills.</li>
+<li>Keep agents narrowly focused.</li>
+<li>Keep the orchestrator lightweight.</li>
+<li>Ensure every intermediate output is auditable.</li>
+<li>Design components for future extension rather than one-off implementation.</li>
+</ul>
+<hr>
+<h1 id="15-future-stage-2">15. Future Stage 2</h1>
+<p>Stage 2 will consume the expert-reviewed assumptions generated during Stage 1.</p>
+<p>Planned components include:</p>
+<ul>
+<li>Human expert review</li>
+<li>Review Integration Agent (understands and incorporates expert revisions)</li>
+<li>Review package import (<code>Excel → YAML</code>)</li>
+<li>LCI Generation Agent</li>
+<li>Engineering calculation tools</li>
+<li>Material balance validation</li>
+<li>Energy balance validation</li>
+<li>Unit consistency validation</li>
+<li>Foreground LCI generation</li>
+</ul>
+<p>Stage 2 is intentionally outside the scope of the current proof of concept.</p>
+
+</body>
+</html>

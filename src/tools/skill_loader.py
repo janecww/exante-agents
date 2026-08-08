@@ -11,11 +11,9 @@ from pathlib import Path
 from src.tools.yaml_loader import load_yaml
 
 SKILL_FILES = (
-    "engineering_heuristics",
-    "estimation_methods",
+    "component_definition",
     "source_priority",
     "review_specification",
-    "process_evolution_examples",
 )
 
 
