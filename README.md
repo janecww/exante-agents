@@ -72,7 +72,7 @@ cases/
 
     starch_nanocrystals/
 
-        technology.yaml          # Required
+        laboratory_case_workbook.xlsx   # Required
 
         references/              # Optional supporting documents
 
@@ -93,10 +93,10 @@ cases/
 Every case must contain
 
 ```text
-technology.yaml
+laboratory_case_workbook.xlsx
 ```
 
-This file defines:
+This single workbook (see `src/tools/laboratory_case_workbook.py`) combines what used to be two separate files (`technology.yaml` and `references/lab_derived_parameters.xlsx`) into three worksheets: Technology Overview, Process Inventory, and Lab-Derived Parameters. It defines:
 
 - technology information
 - laboratory workflow

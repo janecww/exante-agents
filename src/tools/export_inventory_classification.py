@@ -13,8 +13,8 @@ agent's YAML output: the orchestrator passes it the same in-memory
 `outputs/parsed/inventory_classification.yaml` remains the internal,
 machine-readable artifact used by downstream agents.
 `outputs/parsed/lci_development_workbook.xlsx` is the primary interface
-for human review, covering both inventories that already exist in
-`technology.yaml` ("Inventory Source" = "User Input") and additional
+for human review, covering both inventories that already exist in the
+case's laboratory input ("Inventory Source" = "User Input") and additional
 inventories the agent conservatively suggests ("Inventory Source" =
 "Agent Suggestion"). Every row pre-populates "Final Component" with the
 agent's suggestion (editable, restricted to the five predefined
@@ -77,8 +77,8 @@ MAX_COLUMN_WIDTH = 60
 def _default_include_inventory(entry: InventoryClassificationEntry) -> str:
     """Default "Include Inventory" pre-population, by provenance.
 
-    Existing inventories from `technology.yaml` ("User Input") default
-    to "Yes"; inventories the agent suggests ("Agent Suggestion")
+    Existing inventories from the case's laboratory input ("User Input")
+    default to "Yes"; inventories the agent suggests ("Agent Suggestion")
     default to "No", since only the human reviewer may promote a
     suggestion into the confirmed foreground inventory. The reviewer may
     still change this value for any row.

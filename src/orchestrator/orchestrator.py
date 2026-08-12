@@ -1,13 +1,23 @@
 """Workflow orchestration for the Stage 1 pLCA-agents framework.
 
 The orchestrator owns all workflow coordination: it loads project
-inputs (technology, shared skills, the estimation methods knowledge
-base, the case's lab-derived parameters), constructs the Inventory
-Classification Agent and the Estimation Recommendation Agent (injecting
-the shared LLM callable and each agent's own dependencies), drives
-every workflow stage, coordinates LangGraph's native Human-in-the-Loop
-interruption and resumption, and returns the resulting GraphState. It
-also logs workflow milestones to the case's `outputs/logs/workflow.log`.
+inputs -- the case's unified Laboratory Case Workbook (technology +
+lab-derived parameters, see `src.tools.laboratory_case_workbook`),
+shared skills, and the estimation methods knowledge base -- constructs
+the Inventory Classification Agent, the Estimation Recommendation
+Agent, and the Parameter Requirement Agent (injecting the shared LLM
+callable and each agent's own dependencies), drives every workflow
+stage, coordinates LangGraph's native Human-in-the-Loop interruption
+and resumption, and returns the resulting GraphState. It also logs
+workflow milestones to the case's `outputs/logs/workflow.log`.
+
+The case's laboratory input is a single canonical source: every agent
+that needs process quantities or lab-derived parameters gets them from
+the same `laboratory_case_workbook.xlsx`, loaded exactly once per
+`run()`/`resume()` call -- there is no separate `technology.yaml` or
+standalone `lab_derived_parameters.xlsx` read anywhere in this
+pipeline, so there is no risk of one agent seeing stale or
+inconsistent laboratory evidence relative to another.
 
 Workflow:
     Inventory Classification Agent
@@ -17,19 +27,31 @@ Workflow:
     -> Import reviewed workbook -> ConfirmedInventoryPackage
     -> Estimation Recommendation Agent
     -> Export Estimation Recommendations (Worksheet 2)
+    -> INTERRUPT (human selects, per inventory, the recommended method,
+       the more representative method, or neither -- Milestone 1)
+    -> RESUME
+    -> Import human method selection -> ReviewedRecommendationPackage
+    -> Parameter Requirement Agent (Milestone 1; skipped for any
+       inventory with no selected method)
+    -> Scale-Up Preparation (Milestone 2A; deterministic, runs for
+       every inventory including rejected ones)
     -> END
 
-`run()` starts a brand-new workflow and executes it up to the human
-review interrupt. `resume()` continues a previously interrupted
-workflow from that exact point, using LangGraph's checkpointer to
-locate where execution paused, and runs it through to completion.
-Inventory Classification and the workbook export never execute again on
-resume: LangGraph only reruns the node containing the pending interrupt
-(Human Review, which does nothing but interrupt), never a node that
-already completed. Every node is represented as its own LangGraph node
-so this holds regardless of workflow order -- the same interrupt ->
-review -> resume pattern a future Scientific Review stage can reuse by
-adding further nodes after `export_recommendations`.
+`run()` starts a brand-new workflow and executes it up to the first
+human review interrupt. `resume()` continues a previously interrupted
+workflow from whichever interrupt is currently pending, using
+LangGraph's checkpointer to locate where execution paused, and runs it
+until either the *next* interrupt or the end of the workflow -- since
+this pipeline now pauses twice (once for Worksheet 1 review, once for
+Worksheet 2 method selection), `resume()` must be called twice in a
+full run: once after editing Worksheet 1, once after editing Worksheet
+2's "Human Selected Method ID" column. Every already-completed node
+never reruns: LangGraph only reruns the node containing whichever
+interrupt is currently pending, never a node that already completed.
+Every stage is represented as its own LangGraph node so this holds
+regardless of workflow order -- the same interrupt -> review -> resume
+pattern a future Scientific Review stage can reuse by adding further
+nodes after `scale_up_preparation`.
 """
 
 import sqlite3
@@ -43,6 +65,10 @@ from langgraph.types import Command, interrupt
 from config import invoke_llm
 from src.agents.estimation_recommendation import EstimationRecommendationAgent
 from src.agents.inventory_classification import InventoryClassificationAgent
+from src.agents.parameter_requirement import (
+    ParameterRequirementAgent,
+    review_parameter_requirements,
+)
 from src.models.technology import Technology
 from src.orchestrator.graph_builder import build_graph
 from src.state.graph_state import GraphState
@@ -52,23 +78,28 @@ from src.tools.export_estimation_recommendations import (
 )
 from src.tools.export_inventory_classification import export_inventory_classification
 from src.tools.import_confirmed_inventory import import_confirmed_inventory_workbook
+from src.tools.import_estimation_recommendations import (
+    import_estimation_recommendations_workbook,
+)
+from src.tools.laboratory_case_workbook import import_laboratory_case_workbook
 from src.tools.output_writer import append_log, save_parsed
+from src.tools.scale_up_preparation import prepare_scale_up_inputs_for_package
 from src.tools.skill_loader import load_skills
-from src.tools.yaml_loader import load_yaml
 
 SKILLS_DIR = Path("src/skills")
 LCI_WORKBOOK_FILENAME = "lci_development_workbook.xlsx"
 CHECKPOINT_DB_FILENAME = "checkpoints.sqlite"
 
+# The case's single canonical laboratory input: process inventory
+# (technology) plus lab-derived parameters, combined into one workbook.
+# Replaces the former technology.yaml + references/lab_derived_parameters.xlsx
+# split -- see `src.tools.laboratory_case_workbook`.
+LABORATORY_CASE_WORKBOOK_FILENAME = "laboratory_case_workbook.xlsx"
+
 # The authoritative estimation methods knowledge base. Lives alongside
 # the YAML skills but is loaded separately (see `_load_estimation_methods`)
 # since `load_skills()` is YAML-only.
 ESTIMATION_METHODS_FILENAME = "scaleup_decision_framework.xlsx"
-
-# Case-specific, optional: not every case supplies lab-derived
-# parameters, so its absence is not an error (see
-# `_load_lab_derived_parameters`).
-LAB_DERIVED_PARAMETERS_FILENAME = "lab_derived_parameters.xlsx"
 
 # Pydantic model classes stored directly in GraphState. Explicitly
 # allow-listing them lets langgraph-checkpoint's serializer round-trip
@@ -80,6 +111,7 @@ _CHECKPOINT_ALLOWED_MODULES = [
     ("src.models.inventory_classification", "InventoryClassificationPackage"),
     ("src.models.confirmed_inventory", "ConfirmedInventoryPackage"),
     ("src.models.recommendation", "RecommendationPackage"),
+    ("src.models.reviewed_recommendation", "ReviewedRecommendationPackage"),
 ]
 
 
@@ -112,12 +144,17 @@ def _load_estimation_methods() -> list[dict]:
     return load_excel_table(SKILLS_DIR / ESTIMATION_METHODS_FILENAME)
 
 
-def _load_lab_derived_parameters(case_directory: Path) -> list[dict]:
-    """Load the case's lab-derived parameters, if the case supplies any."""
-    path = case_directory / "references" / LAB_DERIVED_PARAMETERS_FILENAME
-    if not path.exists():
-        return []
-    return load_excel_table(path)
+def _load_laboratory_case(case_directory: Path) -> tuple[Technology, list[dict]]:
+    """Load the case's canonical laboratory input.
+
+    Reads the single unified `laboratory_case_workbook.xlsx`, returning
+    the `Technology` model (process inventory) and the lab-derived
+    parameter rows together -- both types of laboratory evidence come
+    from this one file, so every agent that consumes either is
+    guaranteed to see the same laboratory input.
+    """
+    path = case_directory / LABORATORY_CASE_WORKBOOK_FILENAME
+    return import_laboratory_case_workbook(path)
 
 
 def _run_inventory_classification_stage(
@@ -213,10 +250,97 @@ def _run_export_recommendations_stage(
     return {}
 
 
+def _run_human_method_selection_stage(
+    state: GraphState, case_directory: Path
+) -> GraphState:
+    """LangGraph node: pause the workflow for human method selection.
+
+    This node does nothing but interrupt -- mirrors
+    `_run_human_review_stage`. The human edits Worksheet 2's "Human
+    Selected Method ID" column (reusing the existing Excel HITL
+    mechanism; see `src.tools.export_estimation_recommendations`),
+    choosing, per inventory, the recommended method, the more
+    representative method, or neither.
+    """
+    interrupt(
+        {
+            "message": (
+                "Review Worksheet 2 (\"Estimation Recommendations\") and, "
+                "for each inventory, enter its 'Human Selected Method ID' "
+                "-- the Recommended Method ID, the More Representative "
+                "Method ID, or leave it blank to select neither -- then "
+                "resume the workflow."
+            ),
+            "lci_workbook_path": state["lci_workbook_path"],
+        }
+    )
+    append_log(case_directory, "Workflow resumed after human method selection")
+
+    return {}
+
+
+def _run_import_human_selection_stage(
+    state: GraphState, case_directory: Path, estimation_methods: list[dict]
+) -> GraphState:
+    """LangGraph node: import the human's method selection exactly once."""
+    reviewed_recommendation = import_estimation_recommendations_workbook(
+        state["lci_workbook_path"], estimation_methods
+    )
+    append_log(case_directory, "Human method selection imported from workbook")
+
+    return {"reviewed_recommendation": reviewed_recommendation}
+
+
+def _run_parameter_requirement_review_stage(
+    state: GraphState,
+    agent: ParameterRequirementAgent,
+    lab_derived_parameters: list[dict],
+    case_directory: Path,
+) -> GraphState:
+    """LangGraph node: review parameter readiness for every inventory
+    with a human-selected method (Milestone 1). Skipped entirely for
+    any inventory where the human selected neither proposed method --
+    see `review_parameter_requirements`.
+    """
+    reviewed_recommendation = review_parameter_requirements(
+        state["technology"],
+        lab_derived_parameters,
+        state["reviewed_recommendation"],
+        agent,
+    )
+    append_log(case_directory, "Parameter requirement review completed")
+
+    return {"reviewed_recommendation": reviewed_recommendation}
+
+
+def _run_scale_up_preparation_stage(
+    state: GraphState, case_directory: Path, estimation_methods: list[dict]
+) -> GraphState:
+    """LangGraph node: deterministically prepare calculation inputs for
+    every inventory (Milestone 2A) -- including rejected ones, which
+    always resolve to `NOT_READY` rather than being skipped. No LLM
+    call is made in this stage.
+    """
+    reviewed_recommendation = prepare_scale_up_inputs_for_package(
+        state["reviewed_recommendation"], estimation_methods
+    )
+    save_parsed(
+        case_directory,
+        "reviewed_recommendation.yaml",
+        reviewed_recommendation.model_dump(),
+    )
+    append_log(case_directory, "Scale-up preparation completed")
+
+    return {"reviewed_recommendation": reviewed_recommendation}
+
+
 def _build_case_graph(
     case_directory: Path,
     classification_agent: InventoryClassificationAgent,
     recommendation_agent: EstimationRecommendationAgent,
+    parameter_requirement_agent: ParameterRequirementAgent,
+    lab_derived_parameters: list[dict],
+    estimation_methods: list[dict],
     checkpointer,
 ):
     """Wire every stage (with its dependencies closed over) into one graph."""
@@ -239,6 +363,20 @@ def _build_case_graph(
     def export_recommendations_stage(state: GraphState) -> GraphState:
         return _run_export_recommendations_stage(state, case_directory)
 
+    def human_method_selection_stage(state: GraphState) -> GraphState:
+        return _run_human_method_selection_stage(state, case_directory)
+
+    def import_human_selection_stage(state: GraphState) -> GraphState:
+        return _run_import_human_selection_stage(state, case_directory, estimation_methods)
+
+    def parameter_requirement_review_stage(state: GraphState) -> GraphState:
+        return _run_parameter_requirement_review_stage(
+            state, parameter_requirement_agent, lab_derived_parameters, case_directory
+        )
+
+    def scale_up_preparation_stage(state: GraphState) -> GraphState:
+        return _run_scale_up_preparation_stage(state, case_directory, estimation_methods)
+
     return build_graph(
         inventory_classification_stage,
         export_workbook_stage,
@@ -246,24 +384,38 @@ def _build_case_graph(
         import_confirmed_inventory_stage,
         estimation_recommendation_stage,
         export_recommendations_stage,
+        human_method_selection_stage,
+        import_human_selection_stage,
+        parameter_requirement_review_stage,
+        scale_up_preparation_stage,
         checkpointer=checkpointer,
     )
 
 
 def _build_agents(
-    case_directory: Path,
-) -> tuple[InventoryClassificationAgent, EstimationRecommendationAgent]:
-    """Construct both agents with their dependencies injected.
+    case_directory: Path, lab_derived_parameters: list[dict]
+) -> tuple[
+    InventoryClassificationAgent,
+    EstimationRecommendationAgent,
+    ParameterRequirementAgent,
+    list[dict],
+]:
+    """Construct every agent with its dependencies injected.
 
     Called identically by `run()` and `resume()` so the graph topology
     -- required to match across both -- is wired the same way in both
-    processes. Constructing `EstimationRecommendationAgent` in `run()`
-    is cheap (no LLM call happens at construction time) even though it
-    will only actually be invoked after `resume()`.
+    processes. Constructing an agent in `run()` is cheap (no LLM call
+    happens at construction time) even though some will only actually
+    be invoked after a later `resume()`. `lab_derived_parameters` is
+    passed in rather than reloaded here so every agent is guaranteed to
+    see laboratory evidence read from the same
+    `laboratory_case_workbook.xlsx` load (see `_load_laboratory_case`).
+    `estimation_methods` is also returned so the caller can wire the
+    (non-agent, deterministic) import/scale-up-preparation stage
+    closures without loading the knowledge base a second time.
     """
     skills = load_skills(SKILLS_DIR)
     estimation_methods = _load_estimation_methods()
-    lab_derived_parameters = _load_lab_derived_parameters(case_directory)
 
     classification_agent = InventoryClassificationAgent(
         invoke_llm, skills, case_directory
@@ -271,26 +423,39 @@ def _build_agents(
     recommendation_agent = EstimationRecommendationAgent(
         invoke_llm, skills, estimation_methods, lab_derived_parameters, case_directory
     )
-    return classification_agent, recommendation_agent
+    parameter_requirement_agent = ParameterRequirementAgent(invoke_llm, case_directory)
+    return (
+        classification_agent,
+        recommendation_agent,
+        parameter_requirement_agent,
+        estimation_methods,
+    )
 
 
 def run(case_directory: str | Path) -> GraphState:
     """Start a new Stage 1 workflow run for a case directory.
 
-    Loads `technology.yaml` from `case_directory` and every agent's
-    shared dependencies, constructs both agents, and executes the
-    workflow up to the human review interrupt. The returned dict
-    contains an `"__interrupt__"` key when paused (the normal outcome
-    of `run()`); use `resume()` afterward to continue.
+    Loads the case's unified `laboratory_case_workbook.xlsx` and every
+    agent's shared dependencies, constructs every agent, and executes
+    the workflow up to the first human review interrupt. The returned
+    dict contains an `"__interrupt__"` key when paused (the normal
+    outcome of `run()`); use `resume()` afterward to continue -- twice,
+    for a full run, since this pipeline pauses twice (see module
+    docstring).
     """
     case_directory = Path(case_directory)
     append_log(case_directory, "Workflow started")
 
-    print("Loading technology...")
-    technology = Technology(**load_yaml(case_directory / "technology.yaml"))
+    print("Loading laboratory case workbook...")
+    technology, lab_derived_parameters = _load_laboratory_case(case_directory)
 
     print("Loading shared skills and knowledge bases...")
-    classification_agent, recommendation_agent = _build_agents(case_directory)
+    (
+        classification_agent,
+        recommendation_agent,
+        parameter_requirement_agent,
+        estimation_methods,
+    ) = _build_agents(case_directory, lab_derived_parameters)
 
     initial_state: GraphState = {
         "technology": technology,
@@ -298,6 +463,7 @@ def run(case_directory: str | Path) -> GraphState:
         "confirmed_inventory": None,
         "lci_workbook_path": None,
         "recommendation_package": None,
+        "reviewed_recommendation": None,
     }
 
     config = {"configurable": {"thread_id": _thread_id_for(case_directory)}}
@@ -305,7 +471,13 @@ def run(case_directory: str | Path) -> GraphState:
     print("Building LangGraph...")
     with _checkpointer_for(case_directory) as checkpointer:
         graph = _build_case_graph(
-            case_directory, classification_agent, recommendation_agent, checkpointer
+            case_directory,
+            classification_agent,
+            recommendation_agent,
+            parameter_requirement_agent,
+            lab_derived_parameters,
+            estimation_methods,
+            checkpointer,
         )
         final_state = graph.invoke(initial_state, config=config)
 
@@ -319,28 +491,52 @@ def resume(case_directory: str | Path) -> GraphState:
     """Resume a previously interrupted Stage 1 workflow run.
 
     Loads the persisted LangGraph checkpoint for `case_directory` and
-    continues execution from the interruption point: imports the
-    reviewed workbook, constructs the `ConfirmedInventoryPackage`, runs
-    the Estimation Recommendation Agent, appends its worksheet to the
-    shared workbook, and completes the workflow. Inventory
-    Classification and the workbook export do not run again -- only the
-    interrupted Human Review node (which does nothing but resume) and
-    the nodes after it execute.
+    continues execution from whichever interrupt is currently pending.
+    This pipeline pauses twice, so a full run calls `resume()` twice:
+
+    - First call: imports the reviewed Worksheet 1 workbook, constructs
+      `ConfirmedInventoryPackage`, runs the Estimation Recommendation
+      Agent, appends Worksheet 2 to the shared workbook, and then
+      pauses again at the human method selection interrupt -- the
+      returned state contains `"__interrupt__"` once more.
+    - Second call (after the human has edited Worksheet 2's "Human
+      Selected Method ID" column): imports the human's selection,
+      constructs `ReviewedRecommendationPackage`, runs the Parameter
+      Requirement Agent for every selected inventory, runs Scale-Up
+      Preparation for every inventory, and completes the workflow.
+
+    Earlier, already-completed nodes never rerun regardless of which
+    interrupt is pending -- only the node containing that interrupt
+    (rerun from its top) and the nodes after it execute.
 
     Raises `RuntimeError` if no interrupted workflow checkpoint is
     found for this case directory.
     """
     case_directory = Path(case_directory)
 
-    # Reconstructed only to wire the graph identically to `run()`; since
-    # Inventory Classification already completed, it will not be
-    # invoked again.
-    classification_agent, recommendation_agent = _build_agents(case_directory)
+    # Reconstructed only to wire the graph identically to `run()`;
+    # already-completed stages will not be invoked again. `technology`
+    # itself is restored from the checkpoint, not reloaded here --
+    # only `lab_derived_parameters` is needed, for the agents that
+    # consume it.
+    _, lab_derived_parameters = _load_laboratory_case(case_directory)
+    (
+        classification_agent,
+        recommendation_agent,
+        parameter_requirement_agent,
+        estimation_methods,
+    ) = _build_agents(case_directory, lab_derived_parameters)
     config = {"configurable": {"thread_id": _thread_id_for(case_directory)}}
 
     with _checkpointer_for(case_directory) as checkpointer:
         graph = _build_case_graph(
-            case_directory, classification_agent, recommendation_agent, checkpointer
+            case_directory,
+            classification_agent,
+            recommendation_agent,
+            parameter_requirement_agent,
+            lab_derived_parameters,
+            estimation_methods,
+            checkpointer,
         )
 
         snapshot = graph.get_state(config)
@@ -352,6 +548,9 @@ def resume(case_directory: str | Path) -> GraphState:
 
         final_state = graph.invoke(Command(resume="reviewed"), config=config)
 
-    append_log(case_directory, "Workflow completed")
+    if "__interrupt__" in final_state:
+        append_log(case_directory, "Workflow interrupted for human method selection")
+    else:
+        append_log(case_directory, "Workflow completed")
 
     return final_state

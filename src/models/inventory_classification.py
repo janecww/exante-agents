@@ -22,8 +22,8 @@ AGENT_SUGGESTION_REVIEW_REASON = (
 class InventoryClassificationEntry(BaseModel):
     """Suggested component classification for one foreground inventory.
 
-    Covers both inventories that already exist in `technology.yaml`
-    (`inventory_source` = "User Input") and additional inventories the
+    Covers both inventories that already exist in the case's laboratory
+    input (`inventory_source` = "User Input") and additional inventories the
     agent conservatively suggests as commonly becoming explicit at
     industrial scale (`inventory_source` = "Agent Suggestion", e.g.
     steam, cooling water, compressed air). Agent suggestions are

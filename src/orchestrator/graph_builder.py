@@ -29,6 +29,10 @@ def build_graph(
     import_confirmed_inventory_stage: StageCallable,
     estimation_recommendation_stage: StageCallable,
     export_recommendations_stage: StageCallable,
+    human_method_selection_stage: StageCallable,
+    import_human_selection_stage: StageCallable,
+    parameter_requirement_review_stage: StageCallable,
+    scale_up_preparation_stage: StageCallable,
     checkpointer: BaseCheckpointSaver | None = None,
 ) -> CompiledStateGraph:
     """Build and compile the Stage 1 workflow graph.
@@ -41,20 +45,24 @@ def build_graph(
         -> Import Confirmed Inventory Stage
         -> Estimation Recommendation Stage
         -> Export Recommendations Stage (Worksheet 2)
+        -> Human Method Selection Stage (interrupts here -- Milestone 1)
+        -> Import Human Selection Stage
+        -> Parameter Requirement Review Stage (Milestone 1)
+        -> Scale-Up Preparation Stage (Milestone 2A)
         -> END
 
     Every stage is a fully constructed `GraphState -> GraphState`
-    callable, registered directly as a LangGraph node. Human Review is
-    deliberately its own node containing nothing but the interrupt:
-    LangGraph reruns an interrupted node from the top on resume, so
-    keeping Export Workbook as a separate, already-completed node
-    guarantees the workbook is written exactly once and is never
-    overwritten (destroying the human's edits) when the workflow
-    resumes. Estimation Recommendation and Export Recommendations
-    follow the same reasoning/export split as Inventory Classification
-    and Export Workbook -- ready for a future Human Review interrupt to
-    be inserted after Export Recommendations without restructuring
-    either node.
+    callable, registered directly as a LangGraph node. Human Review and
+    Human Method Selection are deliberately their own nodes containing
+    nothing but the interrupt: LangGraph reruns an interrupted node
+    from the top on resume, so keeping the preceding export node
+    separate and already-completed guarantees the workbook is written
+    exactly once and is never overwritten (destroying the human's
+    edits) when the workflow resumes. Reasoning/export node pairs are
+    split the same way throughout (Inventory Classification / Export
+    Workbook, Estimation Recommendation / Export Recommendations) so a
+    future Scientific Review stage can insert a further interrupt the
+    same way without restructuring any existing node.
 
     `checkpointer` persists graph state so the workflow can be
     interrupted in one process and resumed from a separate one later
@@ -69,6 +77,10 @@ def build_graph(
     graph.add_node("import_confirmed_inventory", import_confirmed_inventory_stage)
     graph.add_node("estimation_recommendation", estimation_recommendation_stage)
     graph.add_node("export_recommendations", export_recommendations_stage)
+    graph.add_node("human_method_selection", human_method_selection_stage)
+    graph.add_node("import_human_selection", import_human_selection_stage)
+    graph.add_node("parameter_requirement_review", parameter_requirement_review_stage)
+    graph.add_node("scale_up_preparation", scale_up_preparation_stage)
 
     graph.add_edge(START, "inventory_classification")
     graph.add_edge("inventory_classification", "export_workbook")
@@ -76,7 +88,11 @@ def build_graph(
     graph.add_edge("human_review", "import_confirmed_inventory")
     graph.add_edge("import_confirmed_inventory", "estimation_recommendation")
     graph.add_edge("estimation_recommendation", "export_recommendations")
-    graph.add_edge("export_recommendations", END)
+    graph.add_edge("export_recommendations", "human_method_selection")
+    graph.add_edge("human_method_selection", "import_human_selection")
+    graph.add_edge("import_human_selection", "parameter_requirement_review")
+    graph.add_edge("parameter_requirement_review", "scale_up_preparation")
+    graph.add_edge("scale_up_preparation", END)
 
     return graph.compile(checkpointer=checkpointer)
 
