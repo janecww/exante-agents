@@ -1,4 +1,4 @@
-"""Pydantic models mirroring src/schemas/confirmed_inventory.yaml.
+"""Pydantic models for the human-reviewed, confirmed inventory.
 
 `ConfirmedInventoryPackage` is the authoritative inventory package for
 downstream agents (e.g. a future Estimation Recommendation Agent). It

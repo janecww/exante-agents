@@ -1,4 +1,4 @@
-"""Pydantic models mirroring src/schemas/recommendation.yaml.
+"""Pydantic models for the Estimation Recommendation Agent's output.
 
 `RecommendationPackage` is produced by the Estimation Recommendation
 Agent from `ConfirmedInventoryPackage` and the authoritative estimation

@@ -1,4 +1,4 @@
-"""Pydantic models mirroring src/schemas/inventory_classification.yaml."""
+"""Pydantic models for the Inventory Classification Agent's output."""
 
 from pydantic import BaseModel, Field
 

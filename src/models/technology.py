@@ -1,4 +1,4 @@
-"""Pydantic models mirroring src/schemas/technology.yaml."""
+"""Pydantic models for the case's Technology Overview / Process Inventory."""
 
 from pydantic import BaseModel, Field
 

@@ -4,9 +4,9 @@ Assembles a single plain-text prompt from the technology input and the
 `component_definition` skill. Per the Inventory Classification Agent's
 design, this is intentionally the *only* knowledge source used during
 classification -- any other shared skills present in the injected
-skills dictionary (e.g. `review_specification`, `source_priority`) are
-ignored here. This module performs no reasoning and makes no LLM calls;
-it only prepares the context a future LLM-powered agent will consume.
+skills dictionary (e.g. `source_priority`) are ignored here. This
+module performs no reasoning and makes no LLM calls; it only prepares
+the context a future LLM-powered agent will consume.
 
 The agent performs two tasks from this one prompt: classifying every
 existing foreground input inventory (unchanged from the original

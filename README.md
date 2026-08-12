@@ -8,31 +8,49 @@ Human-in-the-loop multi-agent framework for prospective Life Cycle Assessment (p
 
 This repository implements the **Stage 1 Proof of Concept (POC)** of a human-in-the-loop multi-agent framework for prospective Life Cycle Assessment (LCA).
 
-Instead of directly generating a foreground Life Cycle Inventory (LCI), the framework assists LCA practitioners by developing scientifically justified process and foreground inventory assumptions that can be reviewed by experts before engineering calculations are performed.
+Instead of directly generating a foreground Life Cycle Inventory (LCI), Stage 1 assists LCA practitioners in preparing the foreground inventory for estimation: classifying laboratory-scale inventories into component categories, recommending an estimation method for every confirmed inventory, letting a human select the final method per inventory, and then checking what information that selected method needs before any scale-up calculation is attempted.
 
-The current implementation produces a structured review package for expert review.
-
-For the detailed system architecture and design rationale, see **ARCHITECTURE.md**.
+For the detailed system architecture and design rationale, see **Architecture.md**.
 
 ---
 
 # Current Status
 
-Implemented
+## Stage 1 workflow (implemented)
 
-- ✅ Technology input loading
-- ✅ Process Evolution Agent
-- ✅ Scientific Review Agent
-- ✅ Structured review package generation (`review_package.yaml`)
-- ✅ Manual Excel review package export (`review_package.xlsx`)
+```text
+Laboratory Case Workbook
+        ↓
+Inventory / Component Classification
+        ↓
+Estimation Recommendation
+        ↓
+Human Method Selection (recommended / alternative / neither)
+        ↓
+Parameter Requirement Review
+        ↓
+END
+```
 
-Planned
+- ✅ Laboratory Case Workbook input (technology + lab-derived parameters, with provenance)
+- ✅ Inventory Classification Agent
+- ✅ LCI Development Workbook (Worksheet 1) export/import, native LangGraph Human-in-the-Loop interrupt/resume
+- ✅ Estimation Recommendation Agent (retrieves from `scaleup_decision_framework.xlsx`, never invents a method)
+- ✅ LCI Development Workbook (Worksheet 2) export/import, including human method selection (recommended / alternative / neither)
+- ✅ Parameter Requirement Agent (required / available / missing parameters, calculation readiness)
 
-- Human review integration
-- Human feedback interpretation
-- Engineering calculations
+Stage 1 terminates after the Parameter Requirement Agent has run.
+
+## Stage 2 (standalone prototype, not wired into the workflow)
+
+A standalone scale-up calculation demo (`run_scale_up_demo.py`) exists to validate the Stage 2 design before it is integrated into the LangGraph workflow. It is **not** part of `main.py`/the active graph — see Architecture.md's "Scale-Up Preparation" and "Milestone 2B" sections.
+
+## Planned
+
+- Wiring a real scale-up calculation stage into the active workflow
+- Scientific Review Agent
+- Engineering calculations, material/energy balance validation, unit consistency validation
 - Foreground LCI generation
-- Stage 2 workflow
 
 ---
 
@@ -41,20 +59,20 @@ Planned
 ```text
 src/
 
-    agents/
-    orchestrator/
-    prompts/
-    skills/
-    schemas/
-    models/
-    state/
-    tools/
+    agents/          # Reasoning agents (Inventory Classification, Estimation Recommendation, Parameter Requirement)
+    orchestrator/     # LangGraph workflow topology and orchestration
+    prompts/          # Prompt construction for each agent
+    skills/           # Shared, non-code knowledge (component_definition.yaml, source_priority.yaml, scaleup_decision_framework.xlsx)
+    models/           # Pydantic models
+    state/            # Shared LangGraph state
+    tools/            # Deterministic export/import/loader utilities
 
 tests/
 
 cases/
 
-main.py
+main.py                  # Stage 1 entry point (start / resume)
+run_scale_up_demo.py      # Standalone Stage 2 prototype entry point (not wired into main.py)
 ```
 
 ---
@@ -126,11 +144,18 @@ If provided, these documents are treated as the highest-priority evidence source
 
 ## 2. Run Stage 1
 
-Execute
+The pipeline pauses **twice** for human review, so a full run needs `start` followed by `resume` twice:
 
 ```bash
-python main.py
+python main.py start
+# review/edit Worksheet 1 ("Inventory Classification") in the LCI Development Workbook, then:
+python main.py resume
+# review Worksheet 2 ("Estimation Recommendations"): enter each inventory's
+# "Human Selected Method ID" (recommended, alternative, or leave blank), then:
+python main.py resume
 ```
+
+`resume` reports whichever interrupt is currently pending, so re-running `python main.py resume` after each round of edits is all that's needed.
 
 Execution artifacts are automatically generated under
 
@@ -147,36 +172,22 @@ cases/<case_name>/outputs/
 The final structured output is
 
 ```text
-parsed/review_package.yaml
+parsed/reviewed_recommendation.yaml
 ```
+
+containing, per confirmed inventory, the agent's recommendation, the human's selected method, and the parameter requirement review.
 
 ---
 
-## 3. Generate the Excel review package
+## 3. Standalone Stage 2 prototype (optional)
 
-The Excel export utility is currently **temporary** and is **not yet integrated into the LangGraph workflow**.
-
-After Stage 1 completes successfully, manually execute
+A standalone demo lets you inspect and iterate on the scale-up calculation design without touching the LangGraph workflow:
 
 ```bash
-python src/tools/export_review_package.py
+python run_scale_up_demo.py
 ```
 
-This converts
-
-```text
-parsed/review_package.yaml
-```
-
-into
-
-```text
-review_package.xlsx
-```
-
-for expert review.
-
-Automatic export will be integrated into the orchestrator in a future milestone.
+It loads a case's `reviewed_recommendation.yaml` (from step 2 above) if one exists, otherwise builds a small synthetic example, and produces `scale_up_demo.xlsx` showing the calculation parameters and results. See Architecture.md's "Milestone 2B — Standalone Scale-Up Calculation Demo" section for details.
 
 ---
 
@@ -196,9 +207,8 @@ The framework follows five core principles:
 
 Stage 2 will extend the framework with:
 
-- Human review integration
-- Human feedback interpretation
-- Review Integration Agent
+- Wiring a real scale-up calculation stage into the active LangGraph workflow
+- Scientific Review Agent
 - Engineering calculations
 - Material balance validation
 - Energy balance validation
@@ -209,5 +219,5 @@ Stage 2 will extend the framework with:
 
 # Documentation
 
-- **ARCHITECTURE.md** — System architecture and design rationale
+- **Architecture.md** — System architecture and design rationale
 - **cases/** — Example case studies

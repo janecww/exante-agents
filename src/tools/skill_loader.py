@@ -13,7 +13,6 @@ from src.tools.yaml_loader import load_yaml
 SKILL_FILES = (
     "component_definition",
     "source_priority",
-    "review_specification",
 )
 
 

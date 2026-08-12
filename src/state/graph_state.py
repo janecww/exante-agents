@@ -33,13 +33,16 @@ share one canonical representation of the workflow data.
   representative) estimation method per confirmed inventory. `None`
   until the agent has run. It is exported to Worksheet 2 ("Estimation
   Recommendations") of the same shared workbook.
-- `reviewed_recommendation` (Milestone 1 / Milestone 2A) is populated
-  after the human's method selection on Worksheet 2 is imported, then
-  progressively enriched in place by the same field: the Parameter
-  Requirement Agent attaches `parameter_review` per selected inventory,
-  and Scale-Up Preparation attaches `scale_up_preparation` per
-  inventory (including rejected ones). `None` until the human method
-  selection interrupt has been resumed and imported.
+- `reviewed_recommendation` (Milestone 1) is populated after the
+  human's method selection on Worksheet 2 is imported, then enriched in
+  place by the same field: the Parameter Requirement Agent attaches
+  `parameter_review` per selected inventory (skipped for any inventory
+  with no selected method). `None` until the human method selection
+  interrupt has been resumed and imported. This is Stage 1's final
+  output -- the scale-up calculation itself (`src.tools.scale_up_preparation`
+  and the standalone Milestone 2B demo) is not part of the active graph;
+  its `ReviewedRecommendationEntry.scale_up_preparation` field therefore
+  always stays `None` in this workflow.
 
 Future work: A future version of the framework may introduce a
 dedicated `WorkflowState` model to track workflow execution metadata

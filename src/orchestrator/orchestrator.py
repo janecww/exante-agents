@@ -33,9 +33,14 @@ Workflow:
     -> Import human method selection -> ReviewedRecommendationPackage
     -> Parameter Requirement Agent (Milestone 1; skipped for any
        inventory with no selected method)
-    -> Scale-Up Preparation (Milestone 2A; deterministic, runs for
-       every inventory including rejected ones)
     -> END
+
+Stage 1 ends at the Parameter Requirement Agent. The scale-up
+calculation prototype (`src.tools.scale_up_preparation`, and the
+standalone Milestone 2B demo under `src.tools.scale_up_*` /
+`run_scale_up_demo.py`) is deliberately not wired into this graph --
+it remains available as future, standalone Stage 2 work, but is never
+constructed or invoked by `run()`/`resume()`.
 
 `run()` starts a brand-new workflow and executes it up to the first
 human review interrupt. `resume()` continues a previously interrupted
@@ -50,8 +55,8 @@ never reruns: LangGraph only reruns the node containing whichever
 interrupt is currently pending, never a node that already completed.
 Every stage is represented as its own LangGraph node so this holds
 regardless of workflow order -- the same interrupt -> review -> resume
-pattern a future Scientific Review stage can reuse by adding further
-nodes after `scale_up_preparation`.
+pattern a future stage can reuse by adding further nodes after
+`parameter_requirement_review`.
 """
 
 import sqlite3
@@ -83,7 +88,6 @@ from src.tools.import_estimation_recommendations import (
 )
 from src.tools.laboratory_case_workbook import import_laboratory_case_workbook
 from src.tools.output_writer import append_log, save_parsed
-from src.tools.scale_up_preparation import prepare_scale_up_inputs_for_package
 from src.tools.skill_loader import load_skills
 
 SKILLS_DIR = Path("src/skills")
@@ -300,7 +304,9 @@ def _run_parameter_requirement_review_stage(
     """LangGraph node: review parameter readiness for every inventory
     with a human-selected method (Milestone 1). Skipped entirely for
     any inventory where the human selected neither proposed method --
-    see `review_parameter_requirements`.
+    see `review_parameter_requirements`. This is Stage 1's final node:
+    its result is persisted as `reviewed_recommendation.yaml`, the same
+    way every earlier stage's output is persisted.
     """
     reviewed_recommendation = review_parameter_requirements(
         state["technology"],
@@ -310,26 +316,12 @@ def _run_parameter_requirement_review_stage(
     )
     append_log(case_directory, "Parameter requirement review completed")
 
-    return {"reviewed_recommendation": reviewed_recommendation}
-
-
-def _run_scale_up_preparation_stage(
-    state: GraphState, case_directory: Path, estimation_methods: list[dict]
-) -> GraphState:
-    """LangGraph node: deterministically prepare calculation inputs for
-    every inventory (Milestone 2A) -- including rejected ones, which
-    always resolve to `NOT_READY` rather than being skipped. No LLM
-    call is made in this stage.
-    """
-    reviewed_recommendation = prepare_scale_up_inputs_for_package(
-        state["reviewed_recommendation"], estimation_methods
-    )
     save_parsed(
         case_directory,
         "reviewed_recommendation.yaml",
         reviewed_recommendation.model_dump(),
     )
-    append_log(case_directory, "Scale-up preparation completed")
+    append_log(case_directory, "Parsed reviewed recommendation saved")
 
     return {"reviewed_recommendation": reviewed_recommendation}
 
@@ -374,9 +366,6 @@ def _build_case_graph(
             state, parameter_requirement_agent, lab_derived_parameters, case_directory
         )
 
-    def scale_up_preparation_stage(state: GraphState) -> GraphState:
-        return _run_scale_up_preparation_stage(state, case_directory, estimation_methods)
-
     return build_graph(
         inventory_classification_stage,
         export_workbook_stage,
@@ -387,7 +376,6 @@ def _build_case_graph(
         human_method_selection_stage,
         import_human_selection_stage,
         parameter_requirement_review_stage,
-        scale_up_preparation_stage,
         checkpointer=checkpointer,
     )
 
@@ -411,8 +399,8 @@ def _build_agents(
     see laboratory evidence read from the same
     `laboratory_case_workbook.xlsx` load (see `_load_laboratory_case`).
     `estimation_methods` is also returned so the caller can wire the
-    (non-agent, deterministic) import/scale-up-preparation stage
-    closures without loading the knowledge base a second time.
+    (non-agent, deterministic) import-human-selection stage closure
+    without loading the knowledge base a second time.
     """
     skills = load_skills(SKILLS_DIR)
     estimation_methods = _load_estimation_methods()
@@ -502,8 +490,8 @@ def resume(case_directory: str | Path) -> GraphState:
     - Second call (after the human has edited Worksheet 2's "Human
       Selected Method ID" column): imports the human's selection,
       constructs `ReviewedRecommendationPackage`, runs the Parameter
-      Requirement Agent for every selected inventory, runs Scale-Up
-      Preparation for every inventory, and completes the workflow.
+      Requirement Agent for every selected inventory, and completes
+      the workflow -- Stage 1 ends here.
 
     Earlier, already-completed nodes never rerun regardless of which
     interrupt is pending -- only the node containing that interrupt

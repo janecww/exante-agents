@@ -47,10 +47,10 @@ def _save_visualization() -> None:
     try:
         # Only the topology is drawn, so plain pass-through stages are
         # sufficient here; the real stages are built inside run(). The
-        # pipeline now has 10 stages (Milestone 2A added human method
-        # selection, its import, parameter requirement review, and
-        # scale-up preparation after export_recommendations).
-        visualization_graph = build_graph(*([_identity] * 10))
+        # pipeline has 9 stages: human method selection, its import,
+        # and parameter requirement review after export_recommendations
+        # (Stage 1 ends there -- see graph_builder.build_graph).
+        visualization_graph = build_graph(*([_identity] * 9))
         output_path = export_graph(visualization_graph, CASE_DIR / "outputs" / "workflow.png")
         print(f"Workflow visualization saved to {output_path}")
     except Exception as exc:
@@ -77,25 +77,22 @@ def _report(final_state) -> None:
     reviewed_recommendation = final_state["reviewed_recommendation"]
     if reviewed_recommendation is not None:
         entries = reviewed_recommendation.recommendations
-        ready = sum(
+        selected = sum(1 for entry in entries if entry.human_selected_method is not None)
+        ready_for_parameters = sum(
             1
             for entry in entries
-            if entry.scale_up_preparation and entry.scale_up_preparation.calculation_status == "READY"
+            if entry.parameter_review and entry.parameter_review.calculation_readiness == "READY"
         )
-        missing = sum(
+        missing_parameters = sum(
             1
             for entry in entries
-            if entry.scale_up_preparation
-            and entry.scale_up_preparation.calculation_status == "MISSING_PARAMETERS"
-        )
-        not_ready = sum(
-            1
-            for entry in entries
-            if entry.scale_up_preparation and entry.scale_up_preparation.calculation_status == "NOT_READY"
+            if entry.parameter_review
+            and entry.parameter_review.calculation_readiness == "MISSING_PARAMETERS"
         )
         print(
-            f"Scale-up preparation: {ready} ready, {missing} missing parameters, "
-            f"{not_ready} not ready (no method selected)."
+            f"Human method selection: {selected} of {len(entries)} inventories selected "
+            f"a method. Parameter requirement review: {ready_for_parameters} ready, "
+            f"{missing_parameters} missing parameters."
         )
 
     print("Workflow completed successfully.")
