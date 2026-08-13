@@ -33,6 +33,8 @@ Workflow:
     -> Import human method selection -> ReviewedRecommendationPackage
     -> Parameter Requirement Agent (Milestone 1; skipped for any
        inventory with no selected method)
+    -> Export Parameter Review (Worksheet 3, appended to the same
+       workbook, alongside the existing reviewed_recommendation.yaml)
     -> END
 
 Stage 1 ends at the Parameter Requirement Agent. The scale-up
@@ -82,6 +84,7 @@ from src.tools.export_estimation_recommendations import (
     export_estimation_recommendations,
 )
 from src.tools.export_inventory_classification import export_inventory_classification
+from src.tools.export_parameter_review import export_parameter_review
 from src.tools.import_confirmed_inventory import import_confirmed_inventory_workbook
 from src.tools.import_estimation_recommendations import (
     import_estimation_recommendations_workbook,
@@ -305,8 +308,11 @@ def _run_parameter_requirement_review_stage(
     with a human-selected method (Milestone 1). Skipped entirely for
     any inventory where the human selected neither proposed method --
     see `review_parameter_requirements`. This is Stage 1's final node:
-    its result is persisted as `reviewed_recommendation.yaml`, the same
-    way every earlier stage's output is persisted.
+    its result is persisted as `reviewed_recommendation.yaml` (the
+    machine-readable record) and as the "Parameter Review" worksheet
+    appended to the same shared `lci_development_workbook.xlsx` (the
+    human-readable one) -- both derived from the same structured
+    result, neither replacing the other.
     """
     reviewed_recommendation = review_parameter_requirements(
         state["technology"],
@@ -322,6 +328,9 @@ def _run_parameter_requirement_review_stage(
         reviewed_recommendation.model_dump(),
     )
     append_log(case_directory, "Parsed reviewed recommendation saved")
+
+    export_parameter_review(reviewed_recommendation, state["lci_workbook_path"])
+    append_log(case_directory, "Parameter review exported to workbook")
 
     return {"reviewed_recommendation": reviewed_recommendation}
 

@@ -38,7 +38,29 @@ def save_prompt(case_directory: str | Path, filename: str, prompt: str) -> Path:
 
 
 def save_response(case_directory: str | Path, filename: str, response: str) -> Path:
-    """Persist a raw LLM response, unmodified, under outputs/responses/."""
+    """Persist a raw LLM response, unmodified, under outputs/responses/.
+
+    Raises `TypeError` with a clear, filename-identifying message if
+    `response` is not a string (most commonly `None`, from a failed
+    LLM call) -- never silently writes a placeholder, and never lets
+    that failure surface as the far less informative
+    `TypeError: data must be str, not NoneType` from `Path.write_text`
+    alone. This is a defensive backstop: `config.invoke_llm` itself
+    raises `LLMInvocationError` before ever returning `None`, so a
+    well-behaved caller should never reach this branch -- but this
+    function's contract (a real, already-received response, not `None`
+    standing in for "the call failed") should hold regardless of which
+    LLM callable produced the value.
+    """
+    if not isinstance(response, str):
+        raise TypeError(
+            f"save_response({filename!r}): response must be a str, got "
+            f"{type(response).__name__} ({response!r}). This usually "
+            "means the LLM call itself failed to produce a response "
+            "(e.g. it returned None) -- that failure should be raised "
+            "and handled before reaching save_response(), not passed "
+            "through as if it were a real response to persist."
+        )
     path = _outputs_dir(case_directory) / "responses" / filename
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(response, encoding="utf-8")
