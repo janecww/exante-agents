@@ -79,7 +79,9 @@ from src.agents.parameter_requirement import (
 from src.models.technology import Technology
 from src.orchestrator.graph_builder import build_graph
 from src.state.graph_state import GraphState
-from src.tools.excel_table_loader import load_excel_table
+from src.tools.estimation_methods_knowledge_base import (
+    load_estimation_methods_knowledge_base,
+)
 from src.tools.export_estimation_recommendations import (
     export_estimation_recommendations,
 )
@@ -105,7 +107,8 @@ LABORATORY_CASE_WORKBOOK_FILENAME = "laboratory_case_workbook.xlsx"
 
 # The authoritative estimation methods knowledge base. Lives alongside
 # the YAML skills but is loaded separately (see `_load_estimation_methods`)
-# since `load_skills()` is YAML-only.
+# since `load_skills()` is YAML-only. Its method rows live on the
+# `rules` worksheet -- see `src.tools.estimation_methods_knowledge_base`.
 ESTIMATION_METHODS_FILENAME = "scaleup_decision_framework.xlsx"
 
 # Pydantic model classes stored directly in GraphState. Explicitly
@@ -148,7 +151,7 @@ def _thread_id_for(case_directory: Path) -> str:
 
 def _load_estimation_methods() -> list[dict]:
     """Load the authoritative estimation methods knowledge base."""
-    return load_excel_table(SKILLS_DIR / ESTIMATION_METHODS_FILENAME)
+    return load_estimation_methods_knowledge_base(SKILLS_DIR / ESTIMATION_METHODS_FILENAME)
 
 
 def _load_laboratory_case(case_directory: Path) -> tuple[Technology, list[dict]]:

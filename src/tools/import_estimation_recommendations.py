@@ -32,11 +32,15 @@ This tool performs no LLM reasoning and no inference:
   raises `ValueError` identifying the offending Process ID, Inventory,
   and method ID, rather than being silently corrected, ignored, or
   replaced with the recommendation.
-- Every retrieved field of a valid selection (method_name, tier_name,
-  component, rule_or_equation, required_inputs, trigger_condition,
-  produces, assumptions_to_log, limitations, reference, provenance,
-  url) is copied verbatim from the knowledge base -- never duplicated
-  or re-derived in Python. Once selected, the human's decision is
+- Every retrieved field of a valid selection (method_name, tier,
+  tier_name, component, operation_scope, applies_when,
+  rule_or_equation, required_inputs, input_sourcing, sequence_with,
+  produces, bias_direction, assumptions_to_log, escalate_if,
+  confidence, reference, reference_note, url, limitations,
+  scope_gap_flag) is copied verbatim from the knowledge base -- never
+  duplicated or re-derived in Python (only `tier_name` is derived, by
+  `src.tools.estimation_methods_knowledge_base`, not by this module).
+  Once selected, the human's decision is
   authoritative: nothing downstream (including the Parameter
   Requirement Agent -- see `src.agents.parameter_requirement`) may
   replace it or propose a different method.
@@ -65,21 +69,33 @@ from src.models.reviewed_recommendation import (
 from src.tools.export_estimation_recommendations import HEADERS, SHEET_TITLE
 
 # Fields retrieved verbatim from the knowledge base for a validated
-# human selection -- see `HumanSelectedMethod`.
+# human selection -- see `HumanSelectedMethod`. `tier_name` is the one
+# exception: it is not a `rules` worksheet column, but a derived
+# compatibility field already added by
+# `src.tools.estimation_methods_knowledge_base.load_estimation_methods_knowledge_base`,
+# so it is retrieved here exactly like every genuine column.
 _METHOD_DEFINITION_COLUMNS = [
     "method_id",
     "method_name",
+    "tier",
     "tier_name",
     "component",
+    "operation_scope",
+    "applies_when",
     "rule_or_equation",
     "required_inputs",
-    "trigger_condition",
+    "input_sourcing",
+    "sequence_with",
     "produces",
+    "bias_direction",
     "assumptions_to_log",
-    "limitations",
+    "escalate_if",
+    "confidence",
     "reference",
-    "provenance",
+    "reference_note",
     "url",
+    "limitations",
+    "scope_gap_flag",
 ]
 
 

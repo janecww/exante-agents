@@ -30,9 +30,20 @@ left to the LLM to reconstruct from free text:
            (`_attach_linear_extrapolation`) -- the LLM is told this
            result directly rather than asked to invent its own scale
            factor
+        -> the LLM first checks whether any candidate's operation_scope
+           names a specific operation matching this inventory's own
+           process (e.g. agitation, pumping, or an operation with no
+           industrial equivalent such as sonication) -- a mandatory
+           first step, per the knowledge base's own `how_to_use` sheet,
+           never a tie-breaker applied only once tier-ranking is
+           already under way
         -> the LLM checks the remaining candidates' applicability
-           against the laboratory/lab-derived evidence shown, ranks
-           only the applicable ones by tier, and recommends the
+           against the laboratory/lab-derived evidence shown -- only
+           each candidate's `escalate_if` condition can exclude it
+           outright; `confidence`/`confidence_color` never exclude a
+           candidate by themselves, they are awareness signals stated
+           in the rationale once a candidate is otherwise chosen --
+           ranks only the applicable ones by tier, and recommends the
            highest-tier applicable one
         -> at most one higher-tier, currently-unavailable candidate is
            optionally reported as worth exploring, with only its
@@ -73,22 +84,44 @@ from src.prompts.prompt_helpers import dump, format_technology_overview, section
 from src.prompts.schema_skeleton import build_json_skeleton
 from src.tools.linear_extrapolation import UNAVAILABLE, apply_linear_extrapolation
 
-# Columns of scaleup_decision_framework.xlsx shown per candidate.
+# Columns of scaleup_decision_framework.xlsx's `rules` worksheet (see
+# src.tools.estimation_methods_knowledge_base) shown per candidate.
 # "component" is omitted: every candidate list is already scoped to one
 # component group, so restating it on every row would be pure
-# repetition. Citation metadata (reference, provenance, url) is
+# repetition. Citation metadata (reference, reference_note, url) is
 # omitted too: it plays no role in applicability or representativeness.
+# "sequence_with" is also omitted -- this agent recommends a single
+# method per inventory rather than sequencing two methods' outputs
+# together. "confidence" (the plain-text label, e.g. "verified_primary",
+# "escalation_required") and "confidence_color" (green / yellow / red)
+# are both shown as awareness signals for whoever reviews the
+# recommendation, never as something the agent invents its own version
+# of, and never as a rule the agent applies to exclude a candidate by
+# itself -- only "escalate_if" may exclude a candidate outright (see
+# the Task instructions below for exactly how confidence is used).
+# `tier_name` is kept alongside the framework's own numeric `tier`
+# purely so the LLM has something to copy verbatim into its
+# `tier_name` output field; it is independently re-derived from the
+# knowledge base afterward regardless of what the LLM writes (see
+# `src.agents.estimation_recommendation._normalize_reference`).
 _METHOD_TABLE_COLUMNS = [
-    "i",
+    "tier",
     "tier_name",
     "method_id",
     "method_name",
+    "operation_scope",
+    "applies_when",
     "rule_or_equation",
     "required_inputs",
-    "trigger_condition",
+    "input_sourcing",
     "produces",
+    "bias_direction",
     "assumptions_to_log",
+    "escalate_if",
+    "confidence",
+    "confidence_color",
     "limitations",
+    "scope_gap_flag",
 ]
 
 _LINEAR_EXTRAPOLATION_TIER = 3
@@ -124,7 +157,7 @@ def _candidate_methods_for_component(
         for row in estimation_methods
         if _normalize_component(row.get("component")) == normalized
     ]
-    return sorted(candidates, key=lambda row: row.get("i") or 0)
+    return sorted(candidates, key=lambda row: row.get("tier") or 0)
 
 
 def _normalize_name(name: str | None) -> str:
@@ -178,7 +211,7 @@ def _attach_linear_extrapolation(
     `functional_unit_defined` is True; see `apply_linear_extrapolation`.
     """
     has_linear_extrapolation_candidate = any(
-        row.get("i") == _LINEAR_EXTRAPOLATION_TIER for row in candidate_methods
+        row.get("tier") == _LINEAR_EXTRAPOLATION_TIER for row in candidate_methods
     )
     if not has_linear_extrapolation_candidate or laboratory_quantity is None:
         return None
@@ -319,9 +352,10 @@ def build_estimation_recommendation_prompt(
         confirmed_inventory: The human-confirmed inventory to recommend
             estimation methods for.
         estimation_methods: Every row of
-            `src/skills/scaleup_decision_framework.xlsx`, as loaded by
-            `src.tools.excel_table_loader.load_excel_table`. The
-            authoritative estimation-method knowledge base -- the
+            `src/skills/scaleup_decision_framework.xlsx`'s `rules`
+            worksheet, as loaded by
+            `src.tools.estimation_methods_knowledge_base.load_estimation_methods_knowledge_base`.
+            The authoritative estimation-method knowledge base -- the
             framework's built-in engineering knowledge.
         lab_derived_parameters: Rows from the Laboratory Case
             Workbook's "Lab-Derived Parameters" worksheet.
@@ -395,6 +429,68 @@ def build_estimation_recommendation_prompt(
         "not search for candidates anywhere else. Every inventory "
         "listed in a group's inventories list shares that group's "
         "candidate_methods.\n\n"
+        "USING THE FRAMEWORK'S OWN FIELDS: some candidates are scoped to "
+        "a specific NAMED unit operation (e.g. agitation, pumping, "
+        "evaporation, homogenisation, high-pressure homogenisation, or "
+        "an operation explicitly listed as having no industrial "
+        "equivalent, such as sonication/dialysis/bench freeze-drying) "
+        "via operation_scope, rather than being generic for the whole "
+        "component. A named-operation candidate that matches this "
+        "inventory's own process is never just a tie-breaker against a "
+        "same-tier generic candidate -- see step 1 below, which makes "
+        "checking it a mandatory first step, before any tier-ranking at "
+        "all. As a general pattern, higher tiers are more likely to be "
+        "written for one specific named operation, and lower tiers are "
+        "increasingly generic fallbacks -- but this is a tendency, not "
+        "a guarantee (some tier-6 rows are themselves generic), so "
+        "always check operation_scope directly rather than assuming "
+        "whether a candidate is operation-specific from its tier number "
+        "alone.\n\n"
+        "Each required_inputs item's input_sourcing tells you how it "
+        "may be sourced, and this changes what \"available\" means: "
+        "PROJECT_DATA_ONLY must come from this case's own "
+        "laboratory/process evidence -- never the internet or general "
+        "knowledge; PHYSICAL_CONSTANT_OK may be looked up from a "
+        "standard physical/thermodynamic reference; "
+        "LITERATURE_BENCHMARK_REQUIRED is an external analogy (e.g. an "
+        "industrial yield or benchmark) usable only when a credible, "
+        "scale-comparable, checkable published source exists -- never a "
+        "plausible-sounding but uncredible number. Treat a "
+        "PROJECT_DATA_ONLY or LITERATURE_BENCHMARK_REQUIRED input that "
+        "cannot be genuinely sourced this way as unavailable, never as "
+        "available merely because a plausible value could be guessed.\n\n"
+        "CONFIDENCE and CONFIDENCE_COLOR are awareness signals for "
+        "whoever reviews your recommendation, never a reason to exclude "
+        "a candidate by themselves: a yellow or red confidence_color "
+        "does not by itself make a candidate inapplicable, and you may "
+        "still recommend it if it is otherwise the best applicable "
+        "choice. escalate_if is the only field that excludes a "
+        "candidate outright: if a candidate's escalate_if condition is "
+        "met by the evidence actually available, do not recommend that "
+        "candidate even if its other required_inputs are technically "
+        "available and its confidence_color is green.\n\n"
+        "Whenever a candidate is excluded because its escalate_if "
+        "condition is met, you MUST name it explicitly by method_id in "
+        "recommendation_rationale and state the actual reason using "
+        "escalate_if's own wording -- never substitute a generic "
+        "\"required inputs are missing\" explanation when the real "
+        "reason is a triggered escalate_if, and never claim a "
+        "required_inputs item is missing without having actually "
+        "checked it against all the evidence sections named in step 2 "
+        "below.\n\n"
+        "If a topically relevant value exists in the case's evidence "
+        "(e.g. a published benchmark for the exact operation in "
+        "question) but no candidate's required_inputs is written to "
+        "accept that kind of value, say so explicitly in "
+        "recommendation_rationale -- name the value and state plainly "
+        "that no current rule uses it. Do not let a relevant piece of "
+        "evidence disappear from your reasoning just because nothing "
+        "currently computes from it.\n\n"
+        "bias_direction and scope_gap_flag are informational framework "
+        "metadata describing a method's known bias and whether it has "
+        "an acknowledged coverage gap -- mention them in "
+        "recommendation_rationale when relevant, but neither one by "
+        "itself makes a method inapplicable.\n\n"
         "LINEAR EXTRAPOLATION (tier 3): where an inventory's entry "
         "includes a linear_extrapolation object, that result has "
         "already been computed deterministically (see "
@@ -431,8 +527,39 @@ def build_estimation_recommendation_prompt(
         "inventory has no tier-3 candidate or no laboratory quantity to "
         "extrapolate from -- not that tier 3 was judged inapplicable.\n\n"
         "For every inventory, in every group:\n\n"
-        "1. EVALUATE APPLICABILITY: for each of its group's candidates, "
-        "compare required_inputs and trigger_condition against the "
+        "1. CHECK FOR A NAMED-OPERATION RULE FIRST: before evaluating "
+        "anything by tier, determine whether this inventory's own "
+        "process corresponds to a specific named operation that one or "
+        "more of this group's candidates name in their operation_scope "
+        "(e.g. agitation, pumping, evaporation, homogenisation, "
+        "high-pressure homogenisation, or an operation explicitly "
+        "listed as having no industrial equivalent, such as "
+        "sonication/dialysis/bench freeze-drying). If any candidate's "
+        "operation_scope matches, you MUST evaluate that named "
+        "candidate (or set of same-operation named candidates) BEFORE "
+        "considering any generic candidate in this group -- this is a "
+        "mandatory first check, not a tie-breaker applied only when "
+        "candidates are otherwise equal. You MUST then explicitly name "
+        "that matching candidate by method_id in recommendation_rationale "
+        "regardless of the outcome: whether it becomes recommended_method, "
+        "becomes more_representative_method, is recommended despite a "
+        "yellow or red confidence_color (with that flag stated "
+        "explicitly, per the CONFIDENCE_COLOR guidance above), or is "
+        "excluded because its escalate_if condition is met (with the "
+        "actual escalate_if reason stated, never a substituted "
+        "\"missing inputs\" explanation). "
+        "Never silently fall back to a generic candidate without first "
+        "stating, by method_id, what happened to the matching "
+        "named-operation rule -- an omission of this kind is exactly the "
+        "failure this instruction exists to prevent. Only once this "
+        "check is complete, and has been reflected in "
+        "recommendation_rationale, may you move on to step 2's "
+        "tier-ranked walk across the rest of the group's candidates. If "
+        "no candidate's operation_scope matches this inventory's "
+        "process at all, no mention of this step is required -- proceed "
+        "directly to step 2.\n\n"
+        "2. EVALUATE APPLICABILITY: for each of its group's candidates, "
+        "compare required_inputs and applies_when against the "
         "information actually available from the inventory's own "
         "laboratory_quantity (and linear_extrapolation, for tier 3), "
         "LABORATORY PROCESS INVENTORY, LAB-DERIVED PARAMETERS, "
@@ -440,24 +567,36 @@ def build_estimation_recommendation_prompt(
         "applicable if the information it requires is genuinely "
         "available now. Do not treat tier 1 (omission/cut-off) as "
         "applicable by default merely because it is the lowest tier -- "
-        "it is applicable only when its own trigger_condition is "
+        "it is applicable only when its own applies_when is "
         "genuinely satisfied, exactly like every other tier.\n\n"
-        "2. RECOMMEND: each candidate's \"i\" is its tier (1 = omission "
-        "/ cut-off, the least representative, through 6 = engineering "
-        "equation, the most representative). Rank ONLY the candidates "
-        "you judged applicable in step 1 by tier, and set "
+        "3. RECOMMEND: each candidate's \"tier\" field is its tier "
+        "number (1 = omission/cut-off, the least representative, "
+        "through 6 = engineering equation, the most representative). "
+        "Rank ONLY the candidates "
+        "you judged applicable in step 2 by tier, and set "
         "recommended_method to the highest-tier one among them -- never "
-        "a candidate you judged inapplicable, regardless of its tier -- "
-        "copying method_id, method_name, and tier_name verbatim. Explain "
+        "a candidate you judged inapplicable, and never a candidate "
+        "excluded by escalate_if, regardless of its tier -- copying "
+        "method_id, method_name, and tier_name "
+        "verbatim. Explain "
         "the choice in recommendation_rationale: state why it is "
         "applicable (which evidence made it so) and, briefly, why no "
-        "higher-tier candidate is currently applicable. Do not merely "
+        "higher-tier candidate is currently applicable -- including, "
+        "per step 1, any matching named-operation candidate that was "
+        "excluded. Do not merely "
         "restate the method's name as the rationale. If none of this "
         "inventory's candidates are applicable, set recommended_method "
         "to null and explain why -- including exactly what evidence is "
         "missing -- in recommendation_rationale. Do not include a "
-        "numerical confidence score anywhere in the output.\n\n"
-        "3. OPTIONAL MORE REPRESENTATIVE METHOD: identify AT MOST ONE "
+        "numerical confidence score anywhere in the output. Once you "
+        "have selected recommended_method (and, if applicable, "
+        "more_representative_method), check its confidence_color: if "
+        "yellow or red, add an explicit statement in "
+        "recommendation_rationale naming the confidence label and what "
+        "a reviewer should be cautious about -- never let a yellow/red "
+        "flag pass without comment, and never treat it as a reason to "
+        "pick a different candidate instead.\n\n"
+        "4. OPTIONAL MORE REPRESENTATIVE METHOD: identify AT MOST ONE "
         "higher-tier candidate in the same group that is not currently "
         "applicable but could realistically become applicable with "
         "additional information -- the single most relevant one, not "

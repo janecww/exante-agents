@@ -57,24 +57,45 @@ class HumanSelectedMethod(BaseModel):
     """The human's validated final method selection.
 
     Retrieved in full from `src/skills/scaleup_decision_framework.xlsx`
-    once `import_estimation_recommendations_workbook` confirms
-    `method_id` is a real method belonging to the inventory's own
-    component group -- never invented, and never authored by the LLM.
+    (its `rules` worksheet -- see
+    `src.tools.estimation_methods_knowledge_base`) once
+    `import_estimation_recommendations_workbook` confirms `method_id`
+    is a real method belonging to the inventory's own component group
+    -- never invented, and never authored by the LLM.
+
+    Fields mirror that worksheet's own columns. `applies_when` replaced
+    the retired workbook's `trigger_condition` (same concept, renamed
+    by the framework itself); `provenance` (a blanket "citation
+    verified" on every retired-workbook row) has no equivalent and was
+    dropped in favor of the new, per-row `reference_note`. `tier` is
+    the framework's own authoritative tier number (1-6); `tier_name` is
+    a derived, descriptive compatibility label (see
+    `src.tools.estimation_methods_knowledge_base.TIER_NAME_BY_NUMBER`)
+    kept because the "Tier" column of the "Parameter Review" worksheet
+    export already expects a descriptive string.
     """
 
     method_id: str
     method_name: str | None = None
+    tier: int | None = None
     tier_name: str | None = None
     component: str | None = None
+    operation_scope: str | None = None
+    applies_when: str | None = None
     rule_or_equation: str | None = None
     required_inputs: str | None = None
-    trigger_condition: str | None = None
+    input_sourcing: str | None = None
+    sequence_with: str | None = None
     produces: str | None = None
+    bias_direction: str | None = None
     assumptions_to_log: str | None = None
-    limitations: str | None = None
+    escalate_if: str | None = None
+    confidence: str | None = None
     reference: str | None = None
-    provenance: str | None = None
+    reference_note: str | None = None
     url: str | None = None
+    limitations: str | None = None
+    scope_gap_flag: bool | str | None = None
 
 
 class ReviewedRecommendationEntry(BaseModel):
