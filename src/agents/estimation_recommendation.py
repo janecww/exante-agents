@@ -24,8 +24,9 @@ Current milestone:
     before parsing is even attempted) -> parse JSON -> validate into
     RecommendationPackage -> verify every cited method_id actually
     exists in the knowledge base (and normalize its method_name/tier_name
-    from the knowledge base) -> persist parsed package -> return the
-    validated RecommendationPackage
+    from the knowledge base) -> verify every confirmed inventory sent to
+    the LLM has a corresponding recommendation entry in the response ->
+    persist parsed package -> return the validated RecommendationPackage
 
     "Retrieve, never invent" is enforced deterministically, not left to
     prompt compliance alone: an LLM-cited method_id absent from the
@@ -34,6 +35,15 @@ Current milestone:
     null-like method_id (e.g. the string "null", or "") is normalized
     to a genuine `None` rather than rejected -- it is a non-compliant
     spelling of "no method applies", not a hallucinated citation.
+
+    Completeness is enforced the same way, not just correctness: a real
+    observed failure mode (found via manual case evaluation, not caught
+    by any check until now) is the LLM's response silently dropping one
+    confirmed inventory from the list entirely, producing a
+    schema-valid but incomplete `RecommendationPackage`. See
+    `_verify_every_confirmed_inventory_has_a_recommendation` -- it
+    raises `ValueError` naming exactly which inventory/inventories are
+    missing, rather than letting an incomplete package through silently.
 
     If the raw response is not valid JSON (e.g. truncated by the model's
     output limit -- see `config.invoke_llm`'s `finish_reason` check),
@@ -175,6 +185,52 @@ def _normalize_and_validate_method_references(
     return package
 
 
+def _inventory_key(process_id: str | None, inventory_name: str | None) -> tuple[str, str]:
+    return (
+        (process_id or "").strip().lower(),
+        (inventory_name or "").strip().lower(),
+    )
+
+
+def _verify_every_confirmed_inventory_has_a_recommendation(
+    confirmed_inventory: ConfirmedInventoryPackage, package: RecommendationPackage
+) -> None:
+    """Every confirmed inventory sent to the LLM must come back with
+    exactly one recommendation entry -- a real observed failure mode is
+    the LLM's response silently dropping one inventory from the list
+    entirely (found via manual case evaluation, not caught by any
+    existing check). This is the completeness counterpart to
+    `_normalize_and_validate_method_references`: that one catches an
+    invented method_id; this one catches a missing inventory. Raises
+    `ValueError` naming exactly which confirmed inventory (or
+    inventories) are absent, rather than silently returning an
+    incomplete package.
+    """
+    expected = {
+        _inventory_key(entry.process_id, entry.inventory_name)
+        for entry in confirmed_inventory.inventories
+    }
+    actual = {
+        _inventory_key(entry.process_id, entry.inventory_name)
+        for entry in package.recommendations
+    }
+    missing = expected - actual
+
+    if missing:
+        missing_labels = sorted(
+            f"{entry.process_id}/{entry.inventory_name}"
+            for entry in confirmed_inventory.inventories
+            if _inventory_key(entry.process_id, entry.inventory_name) in missing
+        )
+        raise ValueError(
+            "Estimation Recommendation Agent's response is missing a "
+            "recommendation for confirmed inventory/inventories: "
+            f"{missing_labels}. Every confirmed inventory sent to the LLM "
+            "must come back with exactly one recommendation entry -- this "
+            "is never silently accepted as an incomplete result."
+        )
+
+
 class EstimationRecommendationAgent:
     """Estimation Recommendation Agent: recommends an estimation method
     for every confirmed foreground inventory.
@@ -250,8 +306,9 @@ class EstimationRecommendationAgent:
             truncation guess -- see `_response_appears_truncated` --
             while its `.lineno`/`.colno`/`.pos` still point at the
             original parse failure), a Pydantic `ValidationError`, or
-            `ValueError` (unknown method_id) if the response does not
-            comply; it is never repaired or retried.
+            `ValueError` (unknown method_id, or a confirmed inventory
+            missing from the response) if the response does not comply;
+            it is never repaired or retried.
         """
         print("Running Estimation Recommendation Agent...")
 
@@ -329,6 +386,14 @@ class EstimationRecommendationAgent:
         )
         append_log(
             self.case_directory, "Method references verified against knowledge base"
+        )
+
+        _verify_every_confirmed_inventory_has_a_recommendation(
+            confirmed_inventory, validated_package
+        )
+        append_log(
+            self.case_directory,
+            "Confirmed that every confirmed inventory has a recommendation entry",
         )
 
         save_parsed(

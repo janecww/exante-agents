@@ -30,6 +30,15 @@ class RequiredParameter(BaseModel):
     "Laboratory Process Inventory: P01 water input", or "Lab-Derived
     Parameters: m_mix"), so it stays traceable to real case evidence
     rather than an unexplained number.
+
+    `note` is populated only when `status` is `MISSING` AND a
+    semantically-related value exists in the case's evidence but could
+    not be used as-is -- most commonly a unit mismatch this agent is not
+    authorized to convert (e.g. a water quantity reported in litres when
+    the method needs kg, with no density value available to convert
+    it). It names what was found and why it couldn't be used, so a
+    reviewer knows a conversion is needed rather than assuming the data
+    is entirely absent. `None` when nothing related was found at all.
     """
 
     parameter: str
@@ -37,6 +46,7 @@ class RequiredParameter(BaseModel):
     value: str | float | None = None
     unit: str | None = None
     source: str | None = None
+    note: str | None = None
 
 
 class ParameterReview(BaseModel):

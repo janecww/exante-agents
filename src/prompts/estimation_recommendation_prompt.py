@@ -17,35 +17,43 @@ Decision flow (per confirmed inventory)
 
 The agent's decision process is explicit and traceable, and as much of
 it as possible is performed deterministically in Python rather than
-left to the LLM to reconstruct from free text:
+left to the LLM to reconstruct from free text. It is a strict
+filter-then-rank pipeline (2026-08 redesign): three filters narrow a
+component's candidates down to what is genuinely usable, then the
+survivors are ranked by tier alone. `escalate_if`, `confidence`,
+`confidence_color`, `bias_direction`, `limitations`, and
+`scope_gap_flag` play no role in this decision at all -- they are
+reviewer-facing framework metadata, not decision inputs, and are not
+shown to the agent:
 
     confirmed inventory
-        -> component classification (already on the inventory)
-        -> candidate methods for that component, retrieved from the
-           knowledge base (`_candidate_methods_for_component`) --
-           component routing is a Python filter, not an LLM search
+        -> FILTER 1 -- component classification (already on the
+           inventory) -> candidate methods for that component,
+           retrieved from the knowledge base
+           (`_candidate_methods_for_component`) -- component routing
+           is a Python filter, not an LLM search
         -> for tier-3 (linear extrapolation) candidates specifically,
            the applicable basis is pre-computed deterministically via
            `src.tools.linear_extrapolation.apply_linear_extrapolation`
            (`_attach_linear_extrapolation`) -- the LLM is told this
            result directly rather than asked to invent its own scale
            factor
-        -> the LLM first checks whether any candidate's operation_scope
-           names a specific operation matching this inventory's own
-           process (e.g. agitation, pumping, or an operation with no
-           industrial equivalent such as sonication) -- a mandatory
-           first step, per the knowledge base's own `how_to_use` sheet,
-           never a tie-breaker applied only once tier-ranking is
-           already under way
-        -> the LLM checks the remaining candidates' applicability
-           against the laboratory/lab-derived evidence shown -- only
-           each candidate's `escalate_if` condition can exclude it
-           outright; `confidence`/`confidence_color` never exclude a
-           candidate by themselves, they are awareness signals stated
-           in the rationale once a candidate is otherwise chosen --
-           ranks only the applicable ones by tier, and recommends the
-           highest-tier applicable one
-        -> at most one higher-tier, currently-unavailable candidate is
+        -> FILTER 2 -- unit operation: the LLM keeps only candidates
+           whose `operation_scope` is either generic or names an
+           operation matching this inventory's own process (semantic
+           match, e.g. agitation, pumping, or an operation with no
+           industrial equivalent such as sonication); a candidate
+           named for a different specific operation is discarded here,
+           before any evidence or tier reasoning happens
+        -> FILTER 3 -- evidence: the LLM checks each surviving
+           candidate's `applies_when`, `required_inputs`,
+           `input_sourcing`, and `sequence_with` (semantic match, not
+           exact string match) against the laboratory/lab-derived
+           evidence shown, splitting survivors into "available now"
+           and "not yet available"
+        -> RANK: among the "available now" candidates, the highest
+           tier is recommended
+        -> at most one higher-tier, "not yet available" candidate is
            optionally reported as worth exploring, with only its
            genuinely missing information
 
@@ -89,16 +97,22 @@ from src.tools.linear_extrapolation import UNAVAILABLE, apply_linear_extrapolati
 # "component" is omitted: every candidate list is already scoped to one
 # component group, so restating it on every row would be pure
 # repetition. Citation metadata (reference, reference_note, url) is
-# omitted too: it plays no role in applicability or representativeness.
-# "sequence_with" is also omitted -- this agent recommends a single
-# method per inventory rather than sequencing two methods' outputs
-# together. "confidence" (the plain-text label, e.g. "verified_primary",
-# "escalation_required") and "confidence_color" (green / yellow / red)
-# are both shown as awareness signals for whoever reviews the
-# recommendation, never as something the agent invents its own version
-# of, and never as a rule the agent applies to exclude a candidate by
-# itself -- only "escalate_if" may exclude a candidate outright (see
-# the Task instructions below for exactly how confidence is used).
+# omitted too: it plays no role in filtering or ranking.
+#
+# "escalate_if", "confidence", "confidence_color", "bias_direction",
+# "limitations", and "scope_gap_flag" are all deliberately omitted
+# (2026-08 redesign): the decision logic here filters and ranks purely
+# on component (via grouping), operation_scope, applies_when,
+# required_inputs, input_sourcing, and sequence_with, then ranks
+# survivors by tier alone. These other columns are reviewer-facing
+# framework metadata, not decision inputs for this agent, and it is
+# never shown them.
+#
+# "sequence_with" IS shown (unlike the previous design): a candidate's
+# named companion method_id is itself evidence to check in Filter 3 --
+# see the SEQUENCE_WITH guidance in the Task instructions below. The
+# agent still recommends a single method_id per inventory.
+#
 # `tier_name` is kept alongside the framework's own numeric `tier`
 # purely so the LLM has something to copy verbatim into its
 # `tier_name` output field; it is independently re-derived from the
@@ -114,14 +128,8 @@ _METHOD_TABLE_COLUMNS = [
     "rule_or_equation",
     "required_inputs",
     "input_sourcing",
+    "sequence_with",
     "produces",
-    "bias_direction",
-    "assumptions_to_log",
-    "escalate_if",
-    "confidence",
-    "confidence_color",
-    "limitations",
-    "scope_gap_flag",
 ]
 
 _LINEAR_EXTRAPOLATION_TIER = 3
@@ -393,10 +401,13 @@ def build_estimation_recommendation_prompt(
     process_inventory = _build_process_inventory(technology)
 
     task = (
-        "DECISION FLOW: for every inventory, in every group below, follow "
-        "this exact sequence -- do not start by searching across all "
-        "estimation methods; start from the inventory and its "
-        "component.\n\n"
+        "DECISION FLOW: for every inventory, in every group below, apply "
+        "three filters in order, then rank what survives -- do not start "
+        "by searching across all estimation methods; start from the "
+        "inventory and its component. escalate_if, confidence, "
+        "confidence_color, bias_direction, limitations, and "
+        "scope_gap_flag are not shown to you and play no role in this "
+        "decision at all -- do not reference them.\n\n"
         "EVIDENCE PRIORITY: use, in this order -- (1) the user's own "
         "laboratory evidence (LABORATORY PROCESS INVENTORY and "
         "LAB-DERIVED PARAMETERS below), (2) the framework's built-in "
@@ -409,45 +420,44 @@ def build_estimation_recommendation_prompt(
         "question -- and always say which of these you relied on in "
         "recommendation_rationale.\n\n"
         "CHECKING AVAILABILITY: before treating any required_inputs "
-        "item as unavailable, check BOTH LABORATORY PROCESS INVENTORY "
-        "(every process's inputs and outputs, with quantities) and "
-        "LAB-DERIVED PARAMETERS (extracted or calculated parameters) -- "
-        "an inventory's own laboratory_quantity, attached to it in "
-        "COMPONENT GROUPS AND CANDIDATE METHODS below, is also drawn "
-        "directly from LABORATORY PROCESS INVENTORY. Only report "
-        "information as missing when it is genuinely absent from both; "
-        "never invent a value, and never claim something is missing "
-        "when it is present under a slightly different label -- check "
-        "the process's full input and output list before concluding "
-        "otherwise.\n\n"
-        "COMPONENT ROUTING: COMPONENT GROUPS AND CANDIDATE METHODS below "
-        "groups every confirmed inventory by component -- this grouping "
-        "is the routing step and has already been done in Python. Each "
-        "group's candidate_methods list has already been filtered to "
-        "only the estimation methods for that one component -- do not "
-        "consider any other group's methods for an inventory, and do "
-        "not search for candidates anywhere else. Every inventory "
-        "listed in a group's inventories list shares that group's "
+        "item as unavailable, check all four evidence sections -- "
+        "LABORATORY PROCESS INVENTORY (every process's inputs and "
+        "outputs, with quantities), LAB-DERIVED PARAMETERS (extracted or "
+        "calculated parameters), TECHNOLOGY OVERVIEW, and SOURCE "
+        "PRIORITY -- an inventory's own laboratory_quantity, attached to "
+        "it in COMPONENT GROUPS AND CANDIDATE METHODS below, is also "
+        "drawn directly from LABORATORY PROCESS INVENTORY. Only report "
+        "information as missing when it is genuinely absent from all "
+        "four; never invent a value, and never claim something is "
+        "missing when it is present under a slightly different label -- "
+        "check the process's full input and output list before "
+        "concluding otherwise.\n\n"
+        "FILTER 1 -- COMPONENT (already done, nothing to redo): "
+        "COMPONENT GROUPS AND CANDIDATE METHODS below groups every "
+        "confirmed inventory by component -- this grouping is Filter 1 "
+        "and has already been done in Python. Each group's "
+        "candidate_methods list has already been filtered to only the "
+        "estimation methods for that one component -- do not consider "
+        "any other group's methods for an inventory, and do not search "
+        "for candidates anywhere else. Every inventory listed in a "
+        "group's inventories list shares that group's "
         "candidate_methods.\n\n"
-        "USING THE FRAMEWORK'S OWN FIELDS: some candidates are scoped to "
-        "a specific NAMED unit operation (e.g. agitation, pumping, "
-        "evaporation, homogenisation, high-pressure homogenisation, or "
-        "an operation explicitly listed as having no industrial "
-        "equivalent, such as sonication/dialysis/bench freeze-drying) "
-        "via operation_scope, rather than being generic for the whole "
-        "component. A named-operation candidate that matches this "
-        "inventory's own process is never just a tie-breaker against a "
-        "same-tier generic candidate -- see step 1 below, which makes "
-        "checking it a mandatory first step, before any tier-ranking at "
-        "all. As a general pattern, higher tiers are more likely to be "
-        "written for one specific named operation, and lower tiers are "
-        "increasingly generic fallbacks -- but this is a tendency, not "
-        "a guarantee (some tier-6 rows are themselves generic), so "
+        "OPERATION_SCOPE is what Filter 2 checks: some candidates are "
+        "scoped to a specific NAMED unit operation (e.g. agitation, "
+        "pumping, evaporation, homogenisation, high-pressure "
+        "homogenisation, or an operation explicitly listed as having no "
+        "industrial equivalent, such as sonication/dialysis/bench "
+        "freeze-drying), rather than being generic for the whole "
+        "component. As a general pattern, higher tiers are more likely "
+        "to be written for one specific named operation, and lower tiers "
+        "are increasingly generic fallbacks -- but this is a tendency, "
+        "not a guarantee (some tier-6 rows are themselves generic), so "
         "always check operation_scope directly rather than assuming "
         "whether a candidate is operation-specific from its tier number "
         "alone.\n\n"
-        "Each required_inputs item's input_sourcing tells you how it "
-        "may be sourced, and this changes what \"available\" means: "
+        "INPUT_SOURCING is part of what Filter 3 checks: each "
+        "required_inputs item's input_sourcing tells you how it may be "
+        "sourced, and this changes what \"available\" means: "
         "PROJECT_DATA_ONLY must come from this case's own "
         "laboratory/process evidence -- never the internet or general "
         "knowledge; PHYSICAL_CONSTANT_OK may be looked up from a "
@@ -459,25 +469,13 @@ def build_estimation_recommendation_prompt(
         "PROJECT_DATA_ONLY or LITERATURE_BENCHMARK_REQUIRED input that "
         "cannot be genuinely sourced this way as unavailable, never as "
         "available merely because a plausible value could be guessed.\n\n"
-        "CONFIDENCE and CONFIDENCE_COLOR are awareness signals for "
-        "whoever reviews your recommendation, never a reason to exclude "
-        "a candidate by themselves: a yellow or red confidence_color "
-        "does not by itself make a candidate inapplicable, and you may "
-        "still recommend it if it is otherwise the best applicable "
-        "choice. escalate_if is the only field that excludes a "
-        "candidate outright: if a candidate's escalate_if condition is "
-        "met by the evidence actually available, do not recommend that "
-        "candidate even if its other required_inputs are technically "
-        "available and its confidence_color is green.\n\n"
-        "Whenever a candidate is excluded because its escalate_if "
-        "condition is met, you MUST name it explicitly by method_id in "
-        "recommendation_rationale and state the actual reason using "
-        "escalate_if's own wording -- never substitute a generic "
-        "\"required inputs are missing\" explanation when the real "
-        "reason is a triggered escalate_if, and never claim a "
-        "required_inputs item is missing without having actually "
-        "checked it against all the evidence sections named in step 2 "
-        "below.\n\n"
+        "SEQUENCE_WITH is also part of what Filter 3 checks: when a "
+        "candidate names a companion method_id in sequence_with (e.g. "
+        "SOLV-T4's scale factor feeding SOLV-T4b), the two are meant to "
+        "be used together -- also check whether the companion's own "
+        "needed information is available before treating this candidate "
+        "as available, even though you still recommend only this one "
+        "candidate's method_id, never both at once.\n\n"
         "If a topically relevant value exists in the case's evidence "
         "(e.g. a published benchmark for the exact operation in "
         "question) but no candidate's required_inputs is written to "
@@ -486,26 +484,21 @@ def build_estimation_recommendation_prompt(
         "that no current rule uses it. Do not let a relevant piece of "
         "evidence disappear from your reasoning just because nothing "
         "currently computes from it.\n\n"
-        "bias_direction and scope_gap_flag are informational framework "
-        "metadata describing a method's known bias and whether it has "
-        "an acknowledged coverage gap -- mention them in "
-        "recommendation_rationale when relevant, but neither one by "
-        "itself makes a method inapplicable.\n\n"
         "LINEAR EXTRAPOLATION (tier 3): where an inventory's entry "
         "includes a linear_extrapolation object, that result has "
         "already been computed deterministically (see "
         "src/tools/linear_extrapolation.py) -- use its \"applicable\" "
         "flag, \"basis\", and \"explanation\" directly for that "
-        "inventory's tier-3 candidate rather than judging its "
-        "applicability yourself or inventing your own scale-factor "
+        "inventory's tier-3 candidate in Filter 3 rather than judging "
+        "its applicability yourself or inventing your own scale-factor "
         "reasoning. There are three possible bases, and a missing "
         "laboratory/industrial production output never makes tier 3 "
-        "inapplicable by itself:\n"
+        "unavailable by itself:\n"
         "  - derived_from_outputs: a production_scale_factor was "
         "derived from known laboratory and industrial outputs.\n"
         "  - unchanged_specific_consumption: a production_scale_factor "
         "could NOT be derived (one or both outputs are unknown), but "
-        "tier 3 remains applicable -- laboratory-specific consumption "
+        "tier 3 remains available -- laboratory-specific consumption "
         "per functional unit is assumed unchanged at industrial scale. "
         "Never describe this basis as \"scale factor = 1\"; it is an "
         "explicit assumption, not a derived physical ratio.\n"
@@ -515,92 +508,63 @@ def build_estimation_recommendation_prompt(
         "\"applicable\" is only False when basis is \"unavailable\" -- "
         "a genuinely rare case, distinct from the two bullets above. "
         "When \"applicable\" is true, treat this inventory's tier-3 "
-        "candidate as applicable and never write a rationale that "
-        "contradicts it: if you recommend a tier-3 method, never also "
-        "say linear extrapolation \"is not applicable\" or that it "
+        "candidate as available in Filter 3 and never write a rationale "
+        "that contradicts it: if you recommend a tier-3 method, never "
+        "also say linear extrapolation \"is not applicable\" or that it "
         "fails due to a missing production output -- instead say, if "
         "relevant, that \"a derived production scale factor could not "
-        "be calculated, so tier 3 remains applicable under the "
+        "be calculated, so tier 3 remains available under the "
         "unchanged-specific-consumption assumption\" (the explanation "
         "field already phrases it exactly this way; you may reuse it). "
         "A missing linear_extrapolation object (null) means this "
         "inventory has no tier-3 candidate or no laboratory quantity to "
-        "extrapolate from -- not that tier 3 was judged inapplicable.\n\n"
-        "For every inventory, in every group:\n\n"
-        "1. CHECK FOR A NAMED-OPERATION RULE FIRST: before evaluating "
-        "anything by tier, determine whether this inventory's own "
-        "process corresponds to a specific named operation that one or "
-        "more of this group's candidates name in their operation_scope "
-        "(e.g. agitation, pumping, evaporation, homogenisation, "
-        "high-pressure homogenisation, or an operation explicitly "
-        "listed as having no industrial equivalent, such as "
-        "sonication/dialysis/bench freeze-drying). If any candidate's "
-        "operation_scope matches, you MUST evaluate that named "
-        "candidate (or set of same-operation named candidates) BEFORE "
-        "considering any generic candidate in this group -- this is a "
-        "mandatory first check, not a tie-breaker applied only when "
-        "candidates are otherwise equal. You MUST then explicitly name "
-        "that matching candidate by method_id in recommendation_rationale "
-        "regardless of the outcome: whether it becomes recommended_method, "
-        "becomes more_representative_method, is recommended despite a "
-        "yellow or red confidence_color (with that flag stated "
-        "explicitly, per the CONFIDENCE_COLOR guidance above), or is "
-        "excluded because its escalate_if condition is met (with the "
-        "actual escalate_if reason stated, never a substituted "
-        "\"missing inputs\" explanation). "
-        "Never silently fall back to a generic candidate without first "
-        "stating, by method_id, what happened to the matching "
-        "named-operation rule -- an omission of this kind is exactly the "
-        "failure this instruction exists to prevent. Only once this "
-        "check is complete, and has been reflected in "
-        "recommendation_rationale, may you move on to step 2's "
-        "tier-ranked walk across the rest of the group's candidates. If "
-        "no candidate's operation_scope matches this inventory's "
-        "process at all, no mention of this step is required -- proceed "
-        "directly to step 2.\n\n"
-        "2. EVALUATE APPLICABILITY: for each of its group's candidates, "
-        "compare required_inputs and applies_when against the "
-        "information actually available from the inventory's own "
-        "laboratory_quantity (and linear_extrapolation, for tier 3), "
-        "LABORATORY PROCESS INVENTORY, LAB-DERIVED PARAMETERS, "
-        "TECHNOLOGY OVERVIEW, and SOURCE PRIORITY. A method is only "
-        "applicable if the information it requires is genuinely "
-        "available now. Do not treat tier 1 (omission/cut-off) as "
-        "applicable by default merely because it is the lowest tier -- "
-        "it is applicable only when its own applies_when is "
-        "genuinely satisfied, exactly like every other tier.\n\n"
-        "3. RECOMMEND: each candidate's \"tier\" field is its tier "
-        "number (1 = omission/cut-off, the least representative, "
-        "through 6 = engineering equation, the most representative). "
-        "Rank ONLY the candidates "
-        "you judged applicable in step 2 by tier, and set "
-        "recommended_method to the highest-tier one among them -- never "
-        "a candidate you judged inapplicable, and never a candidate "
-        "excluded by escalate_if, regardless of its tier -- copying "
-        "method_id, method_name, and tier_name "
-        "verbatim. Explain "
-        "the choice in recommendation_rationale: state why it is "
-        "applicable (which evidence made it so) and, briefly, why no "
-        "higher-tier candidate is currently applicable -- including, "
-        "per step 1, any matching named-operation candidate that was "
-        "excluded. Do not merely "
-        "restate the method's name as the rationale. If none of this "
-        "inventory's candidates are applicable, set recommended_method "
-        "to null and explain why -- including exactly what evidence is "
-        "missing -- in recommendation_rationale. Do not include a "
-        "numerical confidence score anywhere in the output. Once you "
-        "have selected recommended_method (and, if applicable, "
-        "more_representative_method), check its confidence_color: if "
-        "yellow or red, add an explicit statement in "
-        "recommendation_rationale naming the confidence label and what "
-        "a reviewer should be cautious about -- never let a yellow/red "
-        "flag pass without comment, and never treat it as a reason to "
-        "pick a different candidate instead.\n\n"
-        "4. OPTIONAL MORE REPRESENTATIVE METHOD: identify AT MOST ONE "
-        "higher-tier candidate in the same group that is not currently "
-        "applicable but could realistically become applicable with "
-        "additional information -- the single most relevant one, not "
-        "every unavailable higher-tier candidate. Set "
+        "extrapolate from -- not that tier 3 was judged unavailable.\n\n"
+        "For every inventory, in every group, apply these filters in "
+        "order, then rank:\n\n"
+        "FILTER 2 -- UNIT OPERATION: keep only candidates whose "
+        "operation_scope is either generic (not scoped to any specific "
+        "named operation) or names an operation matching this "
+        "inventory's own process (semantic match -- e.g. \"agitation\" "
+        "matches a stirred-tank process even if worded differently). "
+        "Discard any candidate whose operation_scope names a different "
+        "specific operation than this inventory's own process. Do this "
+        "before any evidence or tier reasoning.\n\n"
+        "FILTER 3 -- EVIDENCE: for each candidate remaining after "
+        "Filter 2, compare applies_when, required_inputs, "
+        "input_sourcing, and sequence_with (semantic match, not exact "
+        "string match) against the information actually available from "
+        "the inventory's own laboratory_quantity (and "
+        "linear_extrapolation, for tier 3), LABORATORY PROCESS "
+        "INVENTORY, LAB-DERIVED PARAMETERS, TECHNOLOGY OVERVIEW, and "
+        "SOURCE PRIORITY. Split the candidates that survived Filter 2 "
+        "into \"available now\" (every required_inputs item is "
+        "genuinely satisfiable this way) and \"not yet available\" "
+        "(something is genuinely missing). Do not treat tier 1 "
+        "(omission/cut-off) as available by default merely because it "
+        "is the lowest tier -- it is available only when its own "
+        "applies_when is genuinely satisfied, exactly like every other "
+        "tier.\n\n"
+        "RANK: each candidate's \"tier\" field is its tier number (1 = "
+        "omission/cut-off, the least representative, through 6 = "
+        "engineering equation, the most representative). Among the "
+        "\"available now\" candidates, set recommended_method to the "
+        "highest-tier one -- copying method_id, method_name, and "
+        "tier_name verbatim. Explain the choice in "
+        "recommendation_rationale: state why it is available (which "
+        "evidence made it so) and, briefly, why no higher-tier candidate "
+        "is currently available -- if a candidate was discarded in "
+        "Filter 2 for naming a different operation, or was available "
+        "but out-ranked by a higher tier, or is not yet available, say "
+        "so explicitly by method_id. Do not merely restate the method's "
+        "name as the rationale. If no candidate is available, set "
+        "recommended_method to null and explain why -- including "
+        "exactly what evidence is missing -- in recommendation_rationale. "
+        "Do not include a numerical confidence score anywhere in the "
+        "output.\n\n"
+        "OPTIONAL MORE REPRESENTATIVE METHOD: among the \"not yet "
+        "available\" candidates with a tier higher than "
+        "recommended_method, identify AT MOST ONE -- the single most "
+        "relevant one, not every such candidate. Set "
         "more_representative_method to it (copied the same way, "
         "including tier_name) and list in "
         "additional_information_required only the specific information "
@@ -610,10 +574,11 @@ def build_estimation_recommendation_prompt(
         "reactor material, insulation information, heat transfer "
         "coefficient, material properties, equipment specifications, "
         "process simulation results. Do not populate this field merely "
-        "because a higher tier exists in the group; if no such method "
-        "is realistically worth exploring, set more_representative_method "
-        "to null and additional_information_required to the literal "
-        'string "None".\n\n'
+        "because a higher tier exists in the group; if no such "
+        "candidate is realistically worth exploring, set "
+        "more_representative_method to null and "
+        "additional_information_required to the literal string "
+        '"None".\n\n'
         "Populate the JSON structure shown in EXPECTED OUTPUT below "
         "with exactly one entry per inventory across all groups, in "
         "the same order as they appear above."

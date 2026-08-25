@@ -33,6 +33,14 @@ check and cite. It never overrides, infers, or second-guesses
 `status`/`value`/`source` themselves, and it is left blank (`None`)
 whenever the source text doesn't match a known evidence section --
 never a guessed category.
+
+"Note" is `RequiredParameter.note` shown verbatim -- populated by the
+agent only for a `MISSING` parameter where a semantically related value
+exists but could not be used as-is (most commonly a unit mismatch,
+e.g. a value reported in litres when kg is needed, with no density
+available to convert it). This surfaces "a conversion is needed" to
+the reviewer directly in the exported workbook, rather than that
+context being lost once the parameter is marked missing.
 """
 
 from pathlib import Path
@@ -63,6 +71,7 @@ HEADERS = [
     "Unit",
     "Source",
     "Source Type",
+    "Note",
 ]
 
 HEADER_FONT = Font(bold=True, color="FFFFFF")
@@ -138,7 +147,9 @@ def _rows_for_entry(entry: ReviewedRecommendationEntry) -> list[list]:
     )
 
     if not required_parameters:
-        return [_method_row_prefix(entry, method) + [None, None, None, None, None, None]]
+        return [
+            _method_row_prefix(entry, method) + [None, None, None, None, None, None, None]
+        ]
 
     rows = []
     for required_parameter in required_parameters:
@@ -151,6 +162,7 @@ def _rows_for_entry(entry: ReviewedRecommendationEntry) -> list[list]:
                 required_parameter.unit,
                 required_parameter.source,
                 _source_type(required_parameter.source),
+                required_parameter.note,
             ]
         )
     return rows
