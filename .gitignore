@@ -10,24 +10,3 @@ venv/
 # Excel lock files (created while a workbook is open elsewhere)
 ~$*.xlsx
 
-# Generated runtime artifacts under each case's outputs/ directory --
-# the directory structure itself is preserved via .gitkeep, but its
-# generated contents (checkpoints, logs, and every agent's
-# inputs/prompts/responses/parsed artifacts) are never tracked. Case
-# inputs (laboratory_case_workbook.xlsx, technology.yaml,
-# references/lab_derived_parameters.xlsx) live outside outputs/ and are
-# intentionally NOT covered by this.
-cases/*/outputs/checkpoints.sqlite
-cases/*/outputs/workflow.png
-cases/*/outputs/workflow.mmd
-cases/*/outputs/inputs/*
-cases/*/outputs/logs/*
-cases/*/outputs/parsed/*
-cases/*/outputs/prompts/*
-cases/*/outputs/responses/*
-!cases/*/outputs/.gitkeep
-!cases/*/outputs/inputs/.gitkeep
-!cases/*/outputs/logs/.gitkeep
-!cases/*/outputs/parsed/.gitkeep
-!cases/*/outputs/prompts/.gitkeep
-!cases/*/outputs/responses/.gitkeep
