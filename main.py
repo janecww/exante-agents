@@ -35,7 +35,7 @@ from src.orchestrator.graph_builder import build_graph, export_graph
 from src.orchestrator.orchestrator import resume as resume_workflow
 from src.orchestrator.orchestrator import run
 
-CASE_DIR = Path("cases/02_MKS_completeness_UP_ultrasonication")
+CASE_DIR = Path("cases/01_MKS_completeness_DOWN_minimal")
 
 
 def _identity(state):
