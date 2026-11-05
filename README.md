@@ -127,7 +127,7 @@ Each row also carries a free-text rationale stating which evidence made the reco
 | Sampling | `temperature = 0`, `seed = 42`; other settings at provider defaults |
 | Call style | One single-turn prompt per agent call; the reply must be JSON |
 
-The first runs (27 Aug 2026) used `nvidia/nemotron-3-super-120b-a12b:free` with provider-default sampling. That free model was withdrawn in Nov 2026, so all scenarios are re-run with the settings above.
+The first runs (27 Aug 2026) used `nvidia/nemotron-3-super-120b-a12b:free` with provider-default sampling. That free model was withdrawn in Nov 2026, so all scenarios were re-run with the settings above (5 Nov 2026).
 
 Results are **not guaranteed to be bit-reproducible**: providers may not be fully deterministic even at temperature 0, may ignore the seed, and the free-tier endpoint may route requests to different providers. Every prompt and raw response from the reported runs is kept under `cases/*/outputs/prompts/` and `cases/*/outputs/responses/`.
 
@@ -137,9 +137,9 @@ Results are **not guaranteed to be bit-reproducible**: providers may not be full
 |---|---|---|
 | Baseline | [`cases/starch_nanocrystals`](cases/starch_nanocrystals) | — |
 | Information removal | [`cases/01_MKS_completeness_DOWN_minimal`](cases/01_MKS_completeness_DOWN_minimal) | Starch (hydrolysis) and water (final homogenising) quantities removed; hydrolysis reaction time and mixture mass removed |
-| Information enrichment | [`cases/02_MKS_completeness_UP_ultrasonication`](cases/02_MKS_completeness_UP_ultrasonication) | Ultrasonication rated power, operating time, load factor and throughput added; ultrasonication electricity changed from 3.61 to 225 kWh |
+| Information enrichment | [`cases/02_MKS_completeness_UP_ultrasonication`](cases/02_MKS_completeness_UP_ultrasonication) | Ultrasonication rated power, operating time, load factor and throughput added (four rows); nothing else changed |
 
-Each scenario was run **once** with the final code (27 Aug 2026). The knowledge base was edited (REACT-T1 and REACT-T2 rows only) between the baseline/enrichment runs and the removal run; see commit `e8b46ba`.
+Each scenario was run **once** (5 Nov 2026), with the same code, knowledge base, model and sampling settings: baseline `bfd9b18`, removal `21c63e3`, enrichment `fcb5f79`. The earlier 27 Aug 2026 runs, with the previous model, remain in commit `e8b46ba`; [docs/revision_R2_code_check.md §5](docs/revision_R2_code_check.md) compares the two.
 
 The practitioner decisions made in each run are stored in that case's `outputs/parsed/lci_development_workbook.xlsx`: Worksheet 1 columns "Final Component" and "Include Inventory", and Worksheet 2 column "Human Selected Method ID".
 
