@@ -122,12 +122,14 @@ Each row also carries a free-text rationale stating which evidence made the reco
 
 | Setting | Value |
 |---|---|
-| Model | `nvidia/nemotron-3-super-120b-a12b:free` (NVIDIA Nemotron 3 Super) |
+| Model | `nvidia/nemotron-3-ultra-550b-a55b:free` (NVIDIA Nemotron 3 Ultra) |
 | Access | OpenRouter API, through the OpenAI Python SDK ([`config.py`](config.py)) |
-| Sampling | Provider defaults: no temperature, top-p, max-token or seed is set |
+| Sampling | `temperature = 0`, `seed = 42`; other settings at provider defaults |
 | Call style | One single-turn prompt per agent call; the reply must be JSON |
 
-Results are **not bit-reproducible**: sampling is not fixed, and the free-tier endpoint may route requests to different providers. Every prompt and raw response from the reported runs is kept under `cases/*/outputs/prompts/` and `cases/*/outputs/responses/`.
+The first runs (27 Aug 2026) used `nvidia/nemotron-3-super-120b-a12b:free` with provider-default sampling. That free model was withdrawn in Nov 2026, so all scenarios are re-run with the settings above.
+
+Results are **not guaranteed to be bit-reproducible**: providers may not be fully deterministic even at temperature 0, may ignore the seed, and the free-tier endpoint may route requests to different providers. Every prompt and raw response from the reported runs is kept under `cases/*/outputs/prompts/` and `cases/*/outputs/responses/`.
 
 ### Scenarios
 

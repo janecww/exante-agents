@@ -5,8 +5,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
+# Nemotron 3 Super (`nvidia/nemotron-3-super-120b-a12b:free`, used for
+# the 27 Aug 2026 runs) was withdrawn from OpenRouter's free tier in
+# Nov 2026; every scenario is re-run with this configuration instead.
+MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
 BASE_URL = "https://openrouter.ai/api/v1"
+
+# Fixed sampling, to make runs as repeatable as the provider allows.
+# Providers may still not be fully deterministic (and may ignore the
+# seed), so this reduces run-to-run variability; it does not remove it.
+TEMPERATURE = 0
+SEED = 42
 
 client = OpenAI(
     api_key=os.environ.get("OPENROUTER_API_KEY"),
@@ -63,6 +72,8 @@ def invoke_llm(prompt: str) -> str:
     response = client.chat.completions.create(
         model=MODEL,
         messages=[{"role": "user", "content": prompt}],
+        temperature=TEMPERATURE,
+        seed=SEED,
     )
     elapsed = time.monotonic() - started_at
 
