@@ -13,6 +13,7 @@ I/O. Everything is written under the case directory's existing
         logs/       # a single append-only workflow.log
 """
 
+import json
 from pathlib import Path
 
 from src.tools.yaml_loader import save_yaml
@@ -35,6 +36,30 @@ def save_prompt(case_directory: str | Path, filename: str, prompt: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(prompt, encoding="utf-8")
     return path
+
+
+def reusable_response(case_directory: str | Path, filename: str, prompt: str) -> str | None:
+    """A previously saved reply for exactly this prompt, if there is one.
+
+    Used when a run is resumed after a failure (e.g. a provider rate
+    limit): a flow whose identical prompt was already answered, and whose
+    saved reply is valid JSON, is not sent to the model again. Returns
+    None when the saved prompt differs in any way, when no reply was
+    saved, or when the saved reply is not valid JSON (so a failed reply is
+    never reused). Callers log every reuse.
+    """
+    outputs = _outputs_dir(case_directory)
+    prompt_path, response_path = outputs / "prompts" / filename, outputs / "responses" / filename
+    if not (prompt_path.exists() and response_path.exists()):
+        return None
+    if prompt_path.read_text(encoding="utf-8") != prompt:
+        return None
+    response = response_path.read_text(encoding="utf-8")
+    try:
+        json.loads(response)
+    except json.JSONDecodeError:
+        return None
+    return response
 
 
 def save_response(case_directory: str | Path, filename: str, response: str) -> Path:

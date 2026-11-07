@@ -56,7 +56,7 @@ from src.skills.availability import LITERATURE, TARGET, decides_availability, pa
 from src.tools.estimation_methods_knowledge_base import framework_reference
 from src.tools.evidence_trace import build_evidence_index
 from src.tools.method_ranking import normalise_inputs
-from src.tools.output_writer import append_log, save_parsed, save_prompt, save_response
+from src.tools.output_writer import append_log, reusable_response, save_parsed, save_prompt, save_response
 
 
 # A number that is not part of an identifier such as P04, V1 or m3.
@@ -251,6 +251,7 @@ class ParameterRequirementAgent:
         prompt = build_parameter_requirement_prompt(
             technology, lab_derived_parameters, entry
         )
+        reused = reusable_response(self.case_directory, artifact_name, prompt)
         save_prompt(self.case_directory, artifact_name, prompt)
         append_log(
             self.case_directory,
@@ -258,8 +259,12 @@ class ParameterRequirementAgent:
         )
         append_log(self.case_directory, "Prompt generated")
 
-        response = self.llm(prompt)
-        append_log(self.case_directory, "LLM invoked")
+        if reused is not None:
+            response = reused
+            append_log(self.case_directory, "Reused the saved reply to this identical prompt (resumed run); no model call")
+        else:
+            response = self.llm(prompt)
+            append_log(self.case_directory, "LLM invoked")
 
         response_path = save_response(self.case_directory, artifact_name, response)
         append_log(self.case_directory, "Response saved")

@@ -36,7 +36,14 @@ from src.prompts.estimation_recommendation_prompt import (
 )
 from src.tools.evidence_trace import build_evidence_index
 from src.tools.method_ranking import rank_candidates
-from src.tools.output_writer import append_log, save_input, save_parsed, save_prompt, save_response
+from src.tools.output_writer import (
+    append_log,
+    reusable_response,
+    save_input,
+    save_parsed,
+    save_prompt,
+    save_response,
+)
 
 
 def _response_appears_truncated(response: str) -> bool:
@@ -73,10 +80,15 @@ class EstimationRecommendationAgent:
         flow = context["flow"]
         artifact = f"{_artifact_name(flow)}.txt"
         prompt = build_flow_assessment_prompt(technology, context, self.lab_derived_parameters)
+        reused = reusable_response(self.case_directory, artifact, prompt)
         save_prompt(self.case_directory, artifact, prompt)
         append_log(self.case_directory, f"Estimation Recommendation: {flow['process_id']} / {flow['inventory_name']}")
 
-        response = self.llm(prompt)
+        if reused is not None:
+            response = reused
+            append_log(self.case_directory, "Reused the saved reply to this identical prompt (resumed run); no model call")
+        else:
+            response = self.llm(prompt)
         response_path = save_response(self.case_directory, artifact, response)
         appears_truncated = _response_appears_truncated(response)
         append_log(
