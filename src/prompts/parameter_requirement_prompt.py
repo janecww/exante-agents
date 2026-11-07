@@ -14,7 +14,7 @@ scale-up calculation.
 
 import json
 
-from src.models.parameter_review import COMPUTED_FIELDS, COMPUTED_PARAMETER_FIELDS, ParameterReview
+from src.models.parameter_review import COMPUTED_FIELDS, ParameterReview
 from src.models.reviewed_recommendation import ReviewedRecommendationEntry
 from src.models.technology import Technology
 from src.prompts.estimation_recommendation_prompt import (
@@ -84,8 +84,6 @@ def build_parameter_requirement_prompt(
     skeleton = build_json_skeleton(ParameterReview)
     for field in COMPUTED_FIELDS:
         skeleton.pop(field, None)
-    for field in COMPUTED_PARAMETER_FIELDS:
-        skeleton["required_parameters"][0].pop(field, None)
     expected_output = (
         "Return ONLY valid JSON of exactly this structure (`required_parameters` holds one object per input). "
         "No markdown, no code fences, no extra fields.\n\n"

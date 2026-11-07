@@ -129,7 +129,7 @@ Each agent writes its output to YAML files in `outputs/parsed/` and to a workshe
 
 **Worksheet 2, Estimation Recommendations** has one row per flow: the recommended method, the rationale, the alternative ("more representative") method with the inputs it is missing, the other higher-tier methods with what each is missing, the checks, and the practitioner's selection. The practitioner may select the recommended method, the alternative, any listed higher-tier method, or none; the choice is recorded as recommended / alternative / other higher tier. The full input-by-input assessment of every candidate is in `recommendation.yaml`.
 
-**Worksheet 3, Parameter Review** has one row per input of the selected method: `Tag`, `Status` (available / missing / ambiguous), `Value`, `Unit`, `Source`, `Source Type`, `Derivation`, `Note`, `Where to Find` (for a missing or ambiguous input: the kind of source to consult, written by the agent), `Framework Reference` (for a missing LITERATURE input: the rule's own reference from the framework's documentation sheet, added by code) and `Consistency Check` (C2/C5/C6/C7).
+**Worksheet 3, Parameter Review** has one row per input of the selected method: `Tag`, `Status` (available / missing / ambiguous), `Value`, `Unit`, `Source`, `Source Type`, `Derivation`, `Note`, `Where to Find` (for a missing or ambiguous input: the kind of source to consult, written by the agent) and `Consistency Check` (C2/C5/C6/C7).
 
 ---
 
@@ -207,7 +207,7 @@ The final result is `outputs/parsed/reviewed_recommendation.yaml` plus Worksheet
 python -m pytest -q --ignore=tests/test_estimation_recommendation_diagnostics.py --ignore=tests/test_estimation_recommendation_framework_coverage.py
 ```
 
-These tests replace the language model with canned responses (351 pass). The two ignored files call the real model and are diagnostics, not regression tests; they predate framework v2 and have not been updated.
+These tests replace the language model with canned responses (352 pass). The two ignored files call the real model and are diagnostics, not regression tests; they predate framework v2 and have not been updated.
 
 ---
 

@@ -94,14 +94,7 @@ DEFAULT_FRAMEWORK_PATH = Path(__file__).resolve().parents[1] / "skills" / "scale
 def framework_documentation() -> dict[str, dict]:
     """The documentation sheet of the project's framework, loaded once.
 
-    Used only to add the framework's own references and caveats to
-    outputs for people (Worksheet 3, the scale-up prototype); never passed
-    to a prompt."""
+    Used only by the stand-alone scale-up prototype; never passed to a
+    prompt."""
     return load_framework_documentation(DEFAULT_FRAMEWORK_PATH)
 
-
-def framework_reference(method_id: str) -> str | None:
-    """The rule's reference (and URL, if any) from the documentation sheet."""
-    row = framework_documentation().get(method_id) or {}
-    parts = [str(row[key]).strip() for key in ("reference", "url") if row.get(key)]
-    return " -- ".join(parts) or None

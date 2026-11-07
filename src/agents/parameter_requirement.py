@@ -52,8 +52,7 @@ from src.models.reviewed_recommendation import (
 )
 from src.models.technology import Technology
 from src.prompts.parameter_requirement_prompt import build_parameter_requirement_prompt
-from src.skills.availability import LITERATURE, TARGET, decides_availability, parse_inputs
-from src.tools.estimation_methods_knowledge_base import framework_reference
+from src.skills.availability import TARGET, decides_availability, parse_inputs
 from src.tools.evidence_trace import build_evidence_index
 from src.tools.method_ranking import normalise_inputs
 from src.tools.output_writer import append_log, reusable_response, save_parsed, save_prompt, save_response
@@ -114,16 +113,14 @@ def _normalize_review(
     normalised = normalise_inputs(method.method_id, parse_inputs(method.inputs), items, flags, evidence=evidence)
     review.required_parameters = []
     for item in normalised:
-        where_to_find, reference = None, None
+        where_to_find = None
         if item.status != AVAILABLE:
             where_to_find = _sanitise_suggestion(item.name, suggestions.get(item.name), flags)
-            if item.tag == LITERATURE:
-                reference = framework_reference(method.method_id)
         review.required_parameters.append(
             RequiredParameter(
                 parameter=item.name, tag=item.tag, status=item.status, value=item.value, unit=item.unit,
                 source=item.source, derivation=item.derivation, note=item.note,
-                where_to_find=where_to_find, framework_reference=reference,
+                where_to_find=where_to_find,
             )
         )
     review.missing_parameters = [

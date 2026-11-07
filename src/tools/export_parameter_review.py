@@ -76,7 +76,6 @@ HEADERS = [
     "Derivation",
     "Note",
     "Where to Find",
-    "Framework Reference",
     "Consistency Check",
 ]
 
@@ -153,7 +152,7 @@ def _rows_for_entry(entry: ReviewedRecommendationEntry) -> list[list]:
     )
 
     if not required_parameters:
-        return [_method_row_prefix(entry, method) + [None] * 12]
+        return [_method_row_prefix(entry, method) + [None] * 11]
 
     flags = entry.parameter_review.consistency_flags if entry.parameter_review is not None else []
     names = [item.parameter for item in required_parameters]
@@ -177,7 +176,6 @@ def _rows_for_entry(entry: ReviewedRecommendationEntry) -> list[list]:
                 required_parameter.derivation,
                 required_parameter.note,
                 required_parameter.where_to_find,
-                required_parameter.framework_reference,
                 "\n".join(display_check(flag) for flag in own + (general if index == 0 else [])) or None,
             ]
         )
