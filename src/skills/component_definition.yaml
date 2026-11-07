@@ -27,16 +27,23 @@ components:
 
   energy:
     definition: >
-      Electrical energy consumed to operate process equipment such as
-      mixers, stirrers, pumps, centrifuges, homogenisers, ultrasonic
-      devices, and other machinery. For this proof-of-concept, "energy"
-      refers specifically to electrical energy rather than thermal energy.
+      Electricity consumed to run process equipment, such as mixers,
+      stirrers, pumps, centrifuges, homogenisers, ultrasonic devices and
+      other machinery (typically reported in kWh). "Energy" here means
+      electrical energy only; thermal energy is the separate category
+      "heat". If a measured electricity flow also covers heating (e.g. a
+      heated stirrer or heating plate), it is still classified as energy,
+      and the rationale states that it includes heating.
 
   heat:
     definition: >
       Thermal energy supplied to or removed from the process for heating
-      or cooling operations, including steam, hot oil, chilled water,
-      refrigeration, and other thermal utilities.
+      or cooling, whatever its source: steam, hot water or hot oil, fuel
+      firing, chilled water, refrigeration, or electric heating. Heat is
+      the special case of energy kept as its own category because it is
+      estimated differently: from the mass heated, its heat capacity, the
+      temperature change and heat losses, rather than from equipment power
+      and operating time.
 
 classification_guidance:
 
@@ -49,3 +56,5 @@ classification_guidance:
   - If multiple categories are plausible, select the most appropriate category and explain why human verification is recommended.
 
   - Do not infer the estimation method during classification; only determine the component category.
+
+  - When suggesting an additional heat flow for a step whose measured electricity may already include heating, say so in the review reason, so the practitioner can avoid counting the same heating twice.

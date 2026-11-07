@@ -84,7 +84,7 @@ An invalid practitioner entry (a Final Component outside the five categories, or
 
 How the framework was restructured from its first version (tags, conditions, one output per category) is recorded per rule in [docs/framework_v2_changes.md](docs/framework_v2_changes.md).
 
-**Categories:** reactant, solvent, catalyst, energy (electricity only) and heat (thermal energy for heating or cooling). Every rule of a category produces the same quantity: kg reactant, kg solvent (fresh, after any recovery), kg catalyst, kWh electricity or kWh heat, per functional unit.
+**Categories:** reactant, solvent, catalyst, energy and heat ([`component_definition.yaml`](src/skills/component_definition.yaml)). *Energy* is the electricity used to run process equipment (stirrers, pumps, centrifuges, homogenisers, ultrasonic devices). *Heat* is thermal energy for heating or cooling, whatever its source (steam, hot oil, chilled water, electric heating); it is the special case of energy kept as its own category because it is estimated from mass, heat capacity, temperature change and heat losses rather than from equipment power and time. A measured electricity flow that also covers heating stays *energy*, and the practitioner decides at checkpoint 1 whether a separate heat flow would count the same heating twice. Every rule of a category produces the same quantity: kg reactant, kg solvent (fresh, after any recovery), kg catalyst, kWh electricity or kWh heat, per functional unit.
 
 **Tiers** (1 = least representative, 6 = most):
 
