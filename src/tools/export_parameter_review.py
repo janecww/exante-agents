@@ -50,6 +50,7 @@ from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
+from src.tools.export_estimation_recommendations import display_check
 from src.models.reviewed_recommendation import (
     HumanSelectedMethod,
     ReviewedRecommendationEntry,
@@ -177,7 +178,7 @@ def _rows_for_entry(entry: ReviewedRecommendationEntry) -> list[list]:
                 required_parameter.note,
                 required_parameter.where_to_find,
                 required_parameter.framework_reference,
-                "\n".join(own + (general if index == 0 else [])) or None,
+                "\n".join(display_check(flag) for flag in own + (general if index == 0 else [])) or None,
             ]
         )
     return rows

@@ -33,6 +33,7 @@ Process ID + Inventory) is read back from the existing worksheet and
 carried forward, never cleared or overwritten by the agent.
 """
 
+import re
 from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
@@ -72,6 +73,19 @@ HEADER_FONT = Font(bold=True, color="FFFFFF")
 HEADER_FILL = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
 
 MAX_COLUMN_WIDTH = 60
+
+
+_CHECK_CODE = re.compile(r"^C\d+( \(note\))?: ")
+
+
+def display_check(message: str) -> str:
+    """A check message as shown to the practitioner: without its internal
+    code ("C6: ..." -> "...", "C6 (note): ..." -> "Note: ..."). The codes
+    remain in the YAML outputs and the workflow log."""
+    match = _CHECK_CODE.match(message)
+    if not match:
+        return message
+    return ("Note: " if match.group(1) else "") + message[match.end():]
 
 
 def _method_id(reference: EstimationMethodReference | None) -> str:
@@ -132,7 +146,7 @@ def _entry_row(entry: RecommendationEntry, human_selected_method_id: str) -> lis
         _method_name(entry.more_representative_method),
         entry.additional_information_required or "",
         entry.other_higher_tier_methods or "",
-        "\n".join(entry.checks),
+        "\n".join(display_check(check) for check in entry.checks),
         human_selected_method_id or "",
     ]
 
