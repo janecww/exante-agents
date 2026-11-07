@@ -61,6 +61,8 @@ HEADERS = [
     "More Representative Method",
     "Additional Information Required",
     "Other Higher-Tier Methods (missing inputs)",
+    "Same- or Lower-Tier Methods",
+    "Not Applicable (agent's reason)",
     "Checks",
     "Human Selected Method ID",
 ]
@@ -146,6 +148,8 @@ def _entry_row(entry: RecommendationEntry, human_selected_method_id: str) -> lis
         _method_name(entry.more_representative_method),
         entry.additional_information_required or "",
         entry.other_higher_tier_methods or "",
+        entry.lower_tier_methods or "",
+        entry.not_applicable_methods or "",
         "\n".join(display_check(check) for check in entry.checks),
         human_selected_method_id or "",
     ]

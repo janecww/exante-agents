@@ -51,11 +51,11 @@ Both agents that judge evidence (Estimation Recommendation and Parameter Identif
 | Routing each flow to the rules of its category (the model never sees other categories' rules) | Classifying each laboratory flow into one of five categories, from the process description |
 | Whether Tier 3 linear extrapolation is possible from the laboratory quantity ([`linear_extrapolation.py`](src/tools/linear_extrapolation.py)) | Proposing additional flows that usually appear at industrial scale (e.g. steam) |
 | The tag of every input (LAB, CONSTANT, DEFAULT, LITERATURE, TARGET), taken from the framework; DEFAULT values filled in | Whether a named rule's operation matches the flow's process step, and whether its conditions hold (true / false / cannot tell; a rule whose conditions cannot be confirmed is never recommended, but can be offered as the alternative) |
-| **Ranking** ([`method_ranking.py`](src/tools/method_ranking.py)): the recommended method (highest-tier available rule), the alternative (higher-tier rule with the fewest missing inputs) and the other higher-tier rules | The status of every input (available / missing / ambiguous), with value, unit, source and, for a derived value, the derivation |
+| **Ranking** ([`method_ranking.py`](src/tools/method_ranking.py)): the recommended method (highest-tier available rule), the alternative (higher-tier rule with the fewest missing inputs), the other higher-tier rules, the same- or lower-tier rules, and the rules ruled not applicable (with the agent's reason) | The status of every input (available / missing / ambiguous), with value, unit, source and, for a derived value, the derivation |
 | The rationale, written from the same input-by-input assessment, so it cannot contradict the ranking | For the selected method, the value and source of every input, and for each missing one where it could be obtained (Parameter Identification) |
 | Calculation readiness: every non-TARGET input available | |
 | Checks C1-C7 (below) | |
-| Every agent output matches a fixed JSON schema (Pydantic); every agent-proposed flow is flagged for practitioner review; every included flow's Final Component (checkpoint 1) is one of the five categories; the practitioner's selection (checkpoint 2) must be a method shown for that flow (recommended, alternative, or listed under other higher-tier methods) | |
+| Every agent output matches a fixed JSON schema (Pydantic); every agent-proposed flow is flagged for practitioner review; every included flow's Final Component (checkpoint 1) is one of the five categories; the practitioner's selection (checkpoint 2) must be a method shown for that flow (recommended, alternative, or listed under other higher-tier, same- or lower-tier, or not applicable) | |
 
 **Checks.** A response that is not valid JSON or does not match the schema **stops** the workflow, with the raw response kept in `outputs/responses/`; nothing is repaired or retried. Smaller problems are handled conservatively and shown to the practitioner:
 
@@ -127,7 +127,7 @@ Several candidate values without a way to choose make an input **ambiguous**, wh
 
 Each agent writes its output to YAML files in `outputs/parsed/` and to a worksheet of `outputs/parsed/lci_development_workbook.xlsx`.
 
-**Worksheet 2, Estimation Recommendations** has one row per flow: the recommended method, the rationale, the alternative ("more representative") method with the inputs it is missing, the other higher-tier methods with what each is missing, the checks, and the practitioner's selection. The practitioner may select the recommended method, the alternative, any listed higher-tier method, or none; the choice is recorded as recommended / alternative / other higher tier. The full input-by-input assessment of every candidate is in `recommendation.yaml`.
+**Worksheet 2, Estimation Recommendations** has one row per flow: the recommended method, the rationale, the alternative ("more representative") method with the inputs it is missing, the other higher-tier methods with what each is missing, the same- or lower-tier methods, the methods the agent ruled not applicable (with its reason), the checks, and the practitioner's selection. Every rule of the flow's category is therefore shown, and the practitioner may select any of them, or none; the choice is recorded as recommended / alternative / other higher tier / lower tier / not applicable, and a not-applicable selection is written to the workflow log with the agent's reason. The full input-by-input assessment of every candidate is in `recommendation.yaml`.
 
 **Worksheet 3, Parameter Review** has one row per input of the selected method: `Tag`, `Status` (available / missing / ambiguous), `Value`, `Unit`, `Source`, `Source Type`, `Derivation`, `Note`, `Where to Find` (for a missing or ambiguous input: the kind of source to consult, written by the agent) and `Consistency Check` (C2/C5/C6/C7).
 
@@ -193,7 +193,7 @@ Open `cases/<case>/outputs/parsed/lci_development_workbook.xlsx`, complete Works
 python main.py resume
 ```
 
-Complete Worksheet 2 ("Human Selected Method ID": the recommended ID, the more representative ID, or blank for neither), save, then:
+Complete Worksheet 2 ("Human Selected Method ID": any method ID shown in that row, or blank for none), save, then:
 
 ```bash
 python main.py resume
@@ -207,7 +207,7 @@ The final result is `outputs/parsed/reviewed_recommendation.yaml` plus Worksheet
 python -m pytest -q --ignore=tests/test_estimation_recommendation_diagnostics.py --ignore=tests/test_estimation_recommendation_framework_coverage.py
 ```
 
-These tests replace the language model with canned responses (354 pass). The two ignored files call the real model and are diagnostics, not regression tests; they predate framework v2 and have not been updated.
+These tests replace the language model with canned responses (363 pass). The two ignored files call the real model and are diagnostics, not regression tests; they predate framework v2 and have not been updated.
 
 ---
 

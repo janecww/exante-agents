@@ -148,6 +148,8 @@ def compare_with_recommendation(
         for candidate in recommendation.candidate_assessments:
             if candidate.method_id != method_id:
                 continue
+            if not candidate.operation_match or not candidate.inputs:
+                return [f"C2: {method_id} was judged not applicable in the recommendation step; inputs not compared"]
             before = {item.name: item.status for item in candidate.inputs}
             return [
                 f"C2: {item.parameter} is {item.status!r} here but was {before[item.parameter]!r} in the recommendation step"

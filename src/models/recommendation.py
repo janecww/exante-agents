@@ -79,7 +79,10 @@ class RecommendationEntry(BaseModel):
     `additional_information_required` were supplied (`None` if there is
     none; the field is then the literal "None").
     `other_higher_tier_methods`: the remaining higher-tier rules, each with
-    what it is missing. `candidate_assessments`: the model's per-candidate
+    what it is missing. `lower_tier_methods`: the other eligible rules at or
+    below the recommended tier ("available" or what each is missing).
+    `not_applicable_methods`: rules the model ruled out, with its reason.
+    `candidate_assessments`: the model's per-candidate
     assessment the ranking was computed from, with tags filled in from the
     framework. `checks`: findings of the deterministic checks.
     """
@@ -93,6 +96,8 @@ class RecommendationEntry(BaseModel):
     more_representative_method: EstimationMethodReference | None = None
     additional_information_required: str | None = None
     other_higher_tier_methods: str | None = None
+    lower_tier_methods: str | None = None
+    not_applicable_methods: str | None = None
     candidate_assessments: list[CandidateAssessment] = Field(default_factory=list)
     checks: list[str] = Field(default_factory=list)
 

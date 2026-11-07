@@ -59,6 +59,8 @@ from src.models.reviewed_recommendation import (
     PENDING,
     SELECTED,
     SELECTION_ALTERNATIVE,
+    SELECTION_LOWER_TIER,
+    SELECTION_NOT_APPLICABLE,
     SELECTION_OTHER_HIGHER_TIER,
     SELECTION_NONE,
     SELECTION_RECOMMENDED,
@@ -114,8 +116,21 @@ _LISTED_METHOD = re.compile(r"([A-Z]+-T\d+[a-z]?) \(Tier \d\)")
 
 def listed_other_higher_tier_methods(cell: object) -> list[str]:
     """Method IDs listed in a row's "Other Higher-Tier Methods" cell, as
-    written by `src.tools.method_ranking` ("ENER-T5 (Tier 5): ...; ...")."""
+    written by `src.tools.method_ranking` ("ENER-T5 (Tier 5): ...; ...").
+    The "Same- or Lower-Tier Methods" and "Not Applicable (agent's reason)"
+    cells use the same format."""
     return _LISTED_METHOD.findall(str(cell or ""))
+
+
+listed_methods = listed_other_higher_tier_methods
+
+_LISTED_ENTRY = re.compile(r"([A-Z]+-T\d+[a-z]?) \(Tier \d\): (.*?)(?=; [A-Z]+-T\d+[a-z]? \(Tier \d\)|$)", re.S)
+
+
+def listed_method_details(cell: object) -> dict[str, str]:
+    """{method_id: text after its "(Tier n): "} for a listing cell, e.g. the
+    agent's reason in the "Not Applicable (agent's reason)" column."""
+    return {match.group(1): match.group(2).strip() for match in _LISTED_ENTRY.finditer(str(cell or ""))}
 
 
 def _resolve_human_selection(
@@ -126,20 +141,21 @@ def _resolve_human_selection(
     more_representative_method_id: object,
     method_lookup: dict[str, dict],
     other_higher_tier_method_ids: list[str] | None = None,
+    lower_tier_method_ids: list[str] | None = None,
+    not_applicable_method_ids: list[str] | None = None,
 ) -> tuple[HumanSelectedMethod | None, str, str]:
     """Validate and resolve one row's "Human Selected Method ID" cell.
 
-    Per Milestone 1, the human has exactly three meaningful decisions:
-    accept the recommended method, accept the alternative
-    (more-representative) method, or select neither. Returns `(None,
+    The human may select any rule shown for this inventory: the
+    recommended method, the alternative (more-representative) method, or
+    a method listed under Other Higher-Tier Methods, Same- or Lower-Tier
+    Methods, or Not Applicable -- or select none. Returns `(None,
     PENDING, SELECTION_NONE)` for a blank cell -- this also covers "the
     human has not decided yet", since this milestone's model has no
     separate pending-vs-rejected distinction. For a populated cell that
-    matches neither this row's own `recommended_method_id` nor its
-    `more_representative_method_id` -- including a real, otherwise-valid
-    method_id from elsewhere in the knowledge base -- raises
-    `ValueError`: it is not one of the three presented options, so it
-    is never silently accepted as a free-form substitution. Otherwise
+    is not shown for this row -- including a real, otherwise-valid
+    method_id of another category -- raises `ValueError`: it is never
+    silently accepted as a free-form substitution. Otherwise
     returns the full `HumanSelectedMethod` definition, `SELECTED`, and
     the matching `selection_source`.
     """
@@ -153,6 +169,10 @@ def _resolve_human_selection(
         selection_source = SELECTION_ALTERNATIVE
     elif method_id in (other_higher_tier_method_ids or []):
         selection_source = SELECTION_OTHER_HIGHER_TIER
+    elif method_id in (lower_tier_method_ids or []):
+        selection_source = SELECTION_LOWER_TIER
+    elif method_id in (not_applicable_method_ids or []):
+        selection_source = SELECTION_NOT_APPLICABLE
     else:
         raise ValueError(
             f"Invalid Human Selected Method ID {method_id!r} for Process ID "
@@ -160,7 +180,9 @@ def _resolve_human_selection(
             "only select a method shown for this inventory -- the recommended "
             f"method ({recommended_method_id!r}), the more representative "
             f"method ({more_representative_method_id!r}), or one listed under "
-            f"Other Higher-Tier Methods ({other_higher_tier_method_ids or []}); "
+            f"Other Higher-Tier Methods ({other_higher_tier_method_ids or []}), "
+            f"Same- or Lower-Tier Methods ({lower_tier_method_ids or []}) or "
+            f"Not Applicable ({not_applicable_method_ids or []}); "
             "leave the cell blank to select none."
         )
 
@@ -247,9 +269,9 @@ def import_estimation_recommendations_workbook(
                 recommended_method_id,
                 more_representative_method_id,
                 method_lookup,
-                listed_other_higher_tier_methods(
-                    row[column_index["Other Higher-Tier Methods (missing inputs)"]]
-                ),
+                listed_methods(row[column_index["Other Higher-Tier Methods (missing inputs)"]]),
+                listed_methods(row[column_index["Same- or Lower-Tier Methods"]]),
+                listed_methods(row[column_index["Not Applicable (agent's reason)"]]),
             )
         )
 
@@ -276,6 +298,8 @@ def import_estimation_recommendations_workbook(
                 other_higher_tier_methods=row[
                     column_index["Other Higher-Tier Methods (missing inputs)"]
                 ],
+                lower_tier_methods=row[column_index["Same- or Lower-Tier Methods"]],
+                not_applicable_methods=row[column_index["Not Applicable (agent's reason)"]],
                 human_selected_method=human_selected_method,
                 human_selection_status=human_selection_status,
                 selection_source=selection_source,

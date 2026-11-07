@@ -88,8 +88,10 @@ from src.tools.export_estimation_recommendations import (
 from src.tools.export_inventory_classification import export_inventory_classification
 from src.tools.export_parameter_review import export_parameter_review
 from src.tools.import_confirmed_inventory import import_confirmed_inventory_workbook
+from src.models.reviewed_recommendation import SELECTION_NOT_APPLICABLE
 from src.tools.import_estimation_recommendations import (
     import_estimation_recommendations_workbook,
+    listed_method_details,
 )
 from src.tools.laboratory_case_workbook import import_laboratory_case_workbook
 from src.tools.output_writer import append_log, save_parsed
@@ -278,9 +280,10 @@ def _run_human_method_selection_stage(
                 "Review Worksheet 2 (\"Estimation Recommendations\") and, "
                 "for each inventory, enter its 'Human Selected Method ID' "
                 "-- the Recommended Method ID, the More Representative "
-                "Method ID, a method listed under 'Other Higher-Tier "
-                "Methods', or leave it blank to select none -- then "
-                "resume the workflow."
+                "Method ID, or any method listed under 'Other Higher-Tier "
+                "Methods', 'Same- or Lower-Tier Methods' or 'Not "
+                "Applicable' -- or leave it blank to "
+                "select none -- then resume the workflow."
             ),
             "lci_workbook_path": state["lci_workbook_path"],
         }
@@ -298,6 +301,15 @@ def _run_import_human_selection_stage(
         state["lci_workbook_path"], estimation_methods
     )
     append_log(case_directory, "Human method selection imported from workbook")
+    for entry in reviewed_recommendation.recommendations:
+        if entry.selection_source == SELECTION_NOT_APPLICABLE and entry.human_selected_method:
+            method_id = entry.human_selected_method.method_id
+            reason = listed_method_details(entry.not_applicable_methods).get(method_id, "no reason recorded")
+            append_log(
+                case_directory,
+                f"Not-applicable method selected: {entry.process_id} / {entry.inventory_name} selected {method_id}, "
+                f"which the agent judged not applicable ({reason})",
+            )
 
     return {"reviewed_recommendation": reviewed_recommendation}
 

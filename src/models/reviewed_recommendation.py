@@ -52,6 +52,10 @@ SELECTION_RECOMMENDED = "recommended"
 SELECTION_ALTERNATIVE = "alternative"
 # A method listed in Worksheet 2's "Other Higher-Tier Methods" column.
 SELECTION_OTHER_HIGHER_TIER = "other_higher_tier"
+# A method listed in the "Same- or Lower-Tier Methods" column.
+SELECTION_LOWER_TIER = "lower_tier"
+# A method listed in the "Not Applicable (agent's reason)" column.
+SELECTION_NOT_APPLICABLE = "not_applicable"
 SELECTION_NONE = "none"
 
 
@@ -134,6 +138,8 @@ class ReviewedRecommendationEntry(BaseModel):
     more_representative_method: EstimationMethodReference | None = None
     additional_information_required: str | None = None
     other_higher_tier_methods: str | None = None
+    lower_tier_methods: str | None = None
+    not_applicable_methods: str | None = None
     human_selected_method: HumanSelectedMethod | None = None
     human_selection_status: str | None = None
     selection_source: str | None = None

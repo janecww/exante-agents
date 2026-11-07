@@ -20,7 +20,12 @@ the assessments they come from:
 - ALTERNATIVE = among eligible rules of higher tier than the recommended
   one that are not available, the one with the fewest missing or
   ambiguous inputs (ties: the higher tier, then framework order); the
-  others are listed with what each is missing.
+  others are listed with what each is missing;
+- SAME- OR LOWER-TIER = the other eligible rules at or below the
+  recommended tier, each "available" or with what it is missing;
+- NOT APPLICABLE = rules whose operation does not match or whose
+  conditions do not hold, with the model's reason. Every group is
+  selectable.
 
 Checks recorded on the entry (`checks`) instead of stopping the run,
 because each has a conservative fallback:
@@ -183,6 +188,13 @@ def _gap_names(item) -> str:
     return ", ".join(names)
 
 
+def _not_applicable_reason(record: CandidateAssessment) -> str:
+    """Why the model ruled a rule out, in its own words where it gave them."""
+    if not record.operation_match:
+        return "operation does not match" + (f": {record.operation_note}" if record.operation_note else "")
+    return "conditions not met" + (f": {record.conditions_note}" if record.conditions_note else "")
+
+
 def _describe_item_gaps(item) -> str:
     return "; ".join(filter(None, [_describe_gaps(item[2].inputs), _condition_gap(item)]))
 
@@ -254,6 +266,15 @@ def rank_candidates(
     higher = [item for item in assessed_rows if item[3] and not item[4] and (item[1].get("tier") or 0) > floor]
     alternative = min(higher, key=lambda item: (_gap_count(item), -(item[1].get("tier") or 0), item[0]), default=None)
     others = sorted((item for item in higher if item is not alternative), key=lambda item: (-(item[1].get("tier") or 0), item[0]))
+    by_tier = lambda item: (-(item[1].get("tier") or 0), item[0])  # noqa: E731
+    # Shown so the practitioner can select any rule of the category:
+    # eligible rules at or below the recommended tier, and rules the model
+    # judged not applicable.
+    lower = sorted(
+        (item for item in assessed_rows if item[3] and item is not recommended and (item[1].get("tier") or 0) <= floor),
+        key=by_tier,
+    )
+    not_applicable = sorted((item for item in assessed_rows if not item[3]), key=by_tier)
     if recommended and alternative:
         assert (alternative[1].get("tier") or 0) > (recommended[1].get("tier") or 0), "C1 violated"
 
@@ -290,6 +311,12 @@ def rank_candidates(
         more_representative_method=_reference(alternative[1]) if alternative else None,
         additional_information_required=(_describe_item_gaps(alternative) if alternative else "None"),
         other_higher_tier_methods=("; ".join(f"{item[1]['method_id']} (Tier {item[1].get('tier')}): {_describe_item_gaps(item)}" for item in others) or None),
+        lower_tier_methods=("; ".join(
+            f"{item[1]['method_id']} (Tier {item[1].get('tier')}): {'available' if item[4] else _describe_item_gaps(item)}"
+            for item in lower) or None),
+        not_applicable_methods=("; ".join(
+            f"{item[1]['method_id']} (Tier {item[1].get('tier')}): {_not_applicable_reason(item[2])}"
+            for item in not_applicable) or None),
         candidate_assessments=[item[2] for item in assessed_rows],
         checks=checks,
     )
