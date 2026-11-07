@@ -77,7 +77,7 @@ An invalid practitioner entry (a Final Component outside the five categories, or
 
 | File | What it holds | Used by |
 |---|---|---|
-| [`src/skills/scaleup_decision_framework.xlsx`](src/skills/scaleup_decision_framework.xlsx), sheet `rules` | 36 scale-up rules, one row per method; the only sheet any agent sees | Estimation Recommendation, Parameter Identification |
+| [`src/skills/scaleup_decision_framework.xlsx`](src/skills/scaleup_decision_framework.xlsx), sheet `rules` | 37 scale-up rules, one row per method; the only sheet any agent sees | Estimation Recommendation, Parameter Identification |
 | same workbook, sheet `documentation` | Literature basis, confidence and limitations of each rule, for people; never sent to an agent | - |
 | same workbook, sheet `how_to_use` | Meaning of every sheet and column, the input tags and the definition of "available" | - |
 | [`src/skills/component_definition.yaml`](src/skills/component_definition.yaml) | Definitions of the five categories | Inventory Classification |
