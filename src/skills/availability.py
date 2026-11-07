@@ -21,7 +21,10 @@ CONSTANT = "CONSTANT"
 DEFAULT = "DEFAULT"
 LITERATURE = "LITERATURE"
 TARGET = "TARGET"
-TAGS = (LAB, CONSTANT, DEFAULT, LITERATURE, TARGET)
+# An input that may come from either source (e.g. a share of total
+# electricity: derived from measured values, or a cited estimate).
+LAB_OR_LITERATURE = f"{LAB}|{LITERATURE}"
+TAGS = (LAB, CONSTANT, DEFAULT, LITERATURE, LAB_OR_LITERATURE, TARGET)
 
 AVAILABLE = "available"
 MISSING = "missing"
@@ -31,7 +34,7 @@ STATUSES = (AVAILABLE, MISSING, AMBIGUOUS)
 # Provenance values that make a case value LAB evidence.
 LAB_PROVENANCE = ("Reported", "Calculated")
 
-_INPUT_PATTERN = re.compile(r"^\s*(?P<name>[A-Za-z0-9_]+)\s*\[(?P<tag>[A-Z]+)(?:=(?P<default>[^\]]+))?\]\s*$")
+_INPUT_PATTERN = re.compile(r"^\s*(?P<name>[A-Za-z0-9_]+)\s*\[(?P<tag>[A-Z]+(?:\|[A-Z]+)?)(?:=(?P<default>[^\]]+))?\]\s*$")
 
 
 def parse_inputs(inputs: str | None) -> list[dict]:
@@ -75,6 +78,8 @@ Always AVAILABLE: give the value and unit, and in `source` the substance and the
 - [LITERATURE]: an external benchmark (industrial yield, specific energy, membrane flux, equipment design value, ...). \
 AVAILABLE only if the value and its citation are present in the case evidence. Never look up, recall or cite \
 literature yourself.
+- [LAB|LITERATURE]: either source counts. AVAILABLE when the value meets the LAB rule above or the LITERATURE rule \
+above; say in `source` which one applies.
 - [TARGET]: describes the industrial scale (scale factor, target output, industrial or target batch volume, target \
 capacity). Never decides whether a rule is available. Report it as {MISSING!r} unless the case evidence states it.
 
@@ -99,6 +104,6 @@ value, unit and source (the sheet and row it came from, e.g. "Lab-Derived Parame
 estimate or round a value beyond an allowed derivation.
 
 A RULE IS AVAILABLE for a flow when (1) its `operations` include the flow's process step (or its scope is generic), \
-(2) its `conditions` hold for this flow, and (3) every input tagged LAB, CONSTANT, DEFAULT or LITERATURE is \
-{AVAILABLE!r}. TARGET inputs never count.
+(2) its `conditions` hold for this flow, and (3) every input tagged LAB, CONSTANT, DEFAULT, LITERATURE or \
+LAB|LITERATURE is {AVAILABLE!r}. TARGET inputs never count.
 """

@@ -278,7 +278,8 @@ def _run_human_method_selection_stage(
                 "Review Worksheet 2 (\"Estimation Recommendations\") and, "
                 "for each inventory, enter its 'Human Selected Method ID' "
                 "-- the Recommended Method ID, the More Representative "
-                "Method ID, or leave it blank to select neither -- then "
+                "Method ID, a method listed under 'Other Higher-Tier "
+                "Methods', or leave it blank to select none -- then "
                 "resume the workflow."
             ),
             "lci_workbook_path": state["lci_workbook_path"],

@@ -2,14 +2,15 @@
 
 The checks C2 and C5 confirm that the two agents agree and that a value
 and source were filled in; neither opens the case workbook. This module
-does: for an input tagged LAB or LITERATURE that a model marked
+does: for an input tagged LAB, LITERATURE or LAB|LITERATURE that a model marked
 "available", the value (or, for a derived value, every number it was
 derived from) must appear in the case evidence:
 
 - LAB: a value on the Process Inventory or Lab-Derived Parameters sheet
   whose Provenance is "Reported" or "Calculated";
 - LITERATURE: a value anywhere in that evidence (the definition requires
-  the value and its citation to be in the case evidence).
+  the value and its citation to be in the case evidence);
+- LAB|LITERATURE: either of the above, so a value anywhere in that evidence.
 
 CONSTANT and DEFAULT inputs are not traced (a stated physical constant;
 a value fixed by the framework).
@@ -39,7 +40,7 @@ import operator
 import re
 
 from src.models.technology import Technology
-from src.skills.availability import LAB, LAB_PROVENANCE, LITERATURE
+from src.skills.availability import LAB, LAB_OR_LITERATURE, LAB_PROVENANCE, LITERATURE
 
 # 0.5 %: covers rounding (0.333 for 20/60 is 0.1 %; 10.8 for 3.61/0.333 is
 # 0.4 %) without letting a stated 1 match a reported 1.01.
@@ -195,7 +196,7 @@ def check_available_value(
     name: str, tag: str, value, derivation: str | None, index: list[dict], unit=None
 ) -> tuple[bool, str | None]:
     """C6 for one input. Returns (keep_available, message or None)."""
-    if tag not in (LAB, LITERATURE):
+    if tag not in (LAB, LITERATURE, LAB_OR_LITERATURE):
         return True, None
     lab_only = tag == LAB
     where = "a Reported or Calculated value of the case evidence" if lab_only else "the case evidence"
