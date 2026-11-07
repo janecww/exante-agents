@@ -88,9 +88,11 @@ Whenever you derive a value, write the calculation in `derivation` as an equatio
 in brackets, the sheet and row it comes from, then "=" and the result with its unit. Generic example (not from this \
 case): "12.0 kWh (Process Inventory: P0X electricity) / 2.0 h (Lab-Derived Parameters: <stage> t) = 6.0 kW".
 
-AMBIGUOUS EVIDENCE: if several candidate values could be the input and the evidence does not say which one applies \
-(e.g. the same parameter reported more than once for a step with different values), the input is {AMBIGUOUS!r}: do \
-not pick one; name the candidate values in `note`.
+AMBIGUOUS EVIDENCE: an input is {AMBIGUOUS!r} only when two or more different values for it are reported in the \
+evidence and the evidence does not say which one applies (e.g. the same parameter reported more than once for a step \
+with different values): do not pick one; name the reported values in `note`. If only one value is reported but its \
+context could be read in more than one way, the input is NOT ambiguous: use the reported value (status \
+{AVAILABLE!r}) and describe the doubt in `note`. Never infer a further candidate value that is not reported.
 
 INPUT STATUS: every input gets exactly one status: {AVAILABLE!r}, {MISSING!r} or {AMBIGUOUS!r}. For {AVAILABLE!r}, give \
 value, unit and source (the sheet and row it came from, e.g. "Lab-Derived Parameters: Hydrolysis m_mix"); never invent, \
