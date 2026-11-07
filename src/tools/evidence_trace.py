@@ -164,8 +164,21 @@ def _evaluate(expression: str) -> float | None:
 
 
 def _strip_labels(text: str) -> str:
-    """Remove parenthetical labels such as '(Lab-Derived Parameters: V1)'."""
-    return re.sub(r"\([^()]*[A-Za-z][^()]*\)", " ", text)
+    """Remove parenthetical labels such as '(Lab-Derived Parameters: V1)' or
+    '(P04 electricity)', but keep arithmetic groups such as '(1 h / 60 min)'
+    or '(3.16 kg + 15.61 kg)': a group holding a free-standing number is
+    arithmetic, not a label (digits inside identifiers like P04 or V1 do not
+    count)."""
+
+    def replace(match: re.Match) -> str:
+        inner = match.group(0)[1:-1]
+        return match.group(0) if _NUMBER.search(inner) else " "
+
+    previous = None
+    while previous != text:  # innermost labels first
+        previous = text
+        text = re.sub(r"\([^()]*\)", replace, text)
+    return text
 
 
 def _arithmetic(left: str) -> str:
@@ -189,7 +202,10 @@ def check_available_value(
     number = _first_number(value)
 
     if derivation and derivation.strip():
-        left = derivation.rsplit("=", 1)[0] if "=" in derivation else derivation
+        # The expression is what precedes the FIRST "=": later segments are
+        # the model's intermediate results (e.g. "a / (b + c) = a / 1342.76 =
+        # 0.000171"), not inputs to trace.
+        left = derivation.split("=", 1)[0] if "=" in derivation else derivation
         operands = [
             (float(match.group(1)), match.group(2))
             for match in _NUMBER_WITH_UNIT.finditer(_strip_labels(left))
