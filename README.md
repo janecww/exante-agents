@@ -50,12 +50,12 @@ Both agents that judge evidence (Estimation Recommendation and Parameter Identif
 |---|---|
 | Routing each flow to the rules of its category (the model never sees other categories' rules) | Classifying each laboratory flow into one of five categories, from the process description |
 | Whether Tier 3 linear extrapolation is possible from the laboratory quantity ([`linear_extrapolation.py`](src/tools/linear_extrapolation.py)) | Proposing additional flows that usually appear at industrial scale (e.g. steam) |
-| The tag of every input (LAB, CONSTANT, DEFAULT, LITERATURE, TARGET), taken from the framework; DEFAULT values filled in | Whether a named rule's operation matches the flow's process step, and whether its conditions hold |
+| The tag of every input (LAB, CONSTANT, DEFAULT, LITERATURE, TARGET), taken from the framework; DEFAULT values filled in | Whether a named rule's operation matches the flow's process step, and whether its conditions hold (true / false / cannot tell; a rule whose conditions cannot be confirmed is never recommended, but can be offered as the alternative) |
 | **Ranking** ([`method_ranking.py`](src/tools/method_ranking.py)): the recommended method (highest-tier available rule), the alternative (higher-tier rule with the fewest missing inputs) and the other higher-tier rules | The status of every input (available / missing / ambiguous), with value, unit, source and, for a derived value, the derivation |
 | The rationale, written from the same input-by-input assessment, so it cannot contradict the ranking | For the selected method, the value and source of every input (Parameter Identification) |
 | Calculation readiness: every non-TARGET input available | |
-| Checks C1-C5 (below) | |
-| Every agent output matches a fixed JSON schema (Pydantic); every agent-proposed flow is flagged for practitioner review; the practitioner's selection must be one of the two presented methods | |
+| Checks C1-C6 (below) | |
+| Every agent output matches a fixed JSON schema (Pydantic); every agent-proposed flow is flagged for practitioner review; every included flow's Final Component (checkpoint 1) is one of the five categories; the practitioner's selection (checkpoint 2) must be one of the two presented methods | |
 
 **Checks.** A response that is not valid JSON or does not match the schema **stops** the workflow, with the raw response kept in `outputs/responses/`; nothing is repaired or retried. Smaller problems are handled conservatively and shown to the practitioner:
 
@@ -66,6 +66,9 @@ Both agents that judge evidence (Estimation Recommendation and Parameter Identif
 | C3 | Tier 3: the model's status of the laboratory quantity agrees with the code's linear-extrapolation result (the code wins) | Worksheet 2, "Checks" |
 | C4 | Every rule and input was assessed, and none was invented (unassessed = not applicable / missing) | Worksheet 2, "Checks" |
 | C5 | An input marked available has a value and a source (otherwise treated as missing) | Worksheets 2 and 3 |
+| C6 | Evidence trace ([`evidence_trace.py`](src/tools/evidence_trace.py)): an available LAB value, or every number in its derivation, is found in the case workbook with Provenance Reported or Calculated (LITERATURE: anywhere in the evidence), allowing unit conversions and rounding; a parsed derivation must reproduce the value (otherwise treated as missing; an unparseable derivation is kept with a note) | Worksheets 2 and 3 |
+
+An invalid practitioner entry (a Final Component outside the five categories, or a selection that is not one of the two presented methods) stops the workflow with a message naming the row, so it can be corrected and resumed.
 
 ---
 
@@ -203,7 +206,7 @@ The final result is `outputs/parsed/reviewed_recommendation.yaml` plus Worksheet
 python -m pytest -q --ignore=tests/test_estimation_recommendation_diagnostics.py --ignore=tests/test_estimation_recommendation_framework_coverage.py
 ```
 
-These tests replace the language model with canned responses (316 pass). The two ignored files call the real model and are diagnostics, not regression tests; they predate framework v2 and have not been updated.
+These tests replace the language model with canned responses (341 pass). The two ignored files call the real model and are diagnostics, not regression tests; they predate framework v2 and have not been updated.
 
 ---
 

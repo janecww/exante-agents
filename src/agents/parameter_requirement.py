@@ -52,6 +52,7 @@ from src.models.reviewed_recommendation import (
 from src.models.technology import Technology
 from src.prompts.parameter_requirement_prompt import build_parameter_requirement_prompt
 from src.skills.availability import TARGET, decides_availability, parse_inputs
+from src.tools.evidence_trace import build_evidence_index
 from src.tools.method_ranking import normalise_inputs
 from src.tools.output_writer import append_log, save_parsed, save_prompt, save_response
 
@@ -65,7 +66,9 @@ def _response_appears_truncated(response: str) -> bool:
     return not stripped.endswith(("}", "]"))
 
 
-def _normalize_review(review: ParameterReview, method: HumanSelectedMethod) -> ParameterReview:
+def _normalize_review(
+    review: ParameterReview, method: HumanSelectedMethod, evidence: list[dict] | None = None
+) -> ParameterReview:
     """Apply the framework to the model's answer, then compute the summary.
 
     The inputs are normalised exactly as in the recommendation ranking
@@ -84,7 +87,7 @@ def _normalize_review(review: ParameterReview, method: HumanSelectedMethod) -> P
         )
         for item in review.required_parameters
     ]
-    normalised = normalise_inputs(method.method_id, parse_inputs(method.inputs), items, flags)
+    normalised = normalise_inputs(method.method_id, parse_inputs(method.inputs), items, flags, evidence=evidence)
     review.required_parameters = [
         RequiredParameter(
             parameter=item.name, tag=item.tag, status=item.status, value=item.value, unit=item.unit,
@@ -264,7 +267,11 @@ class ParameterRequirementAgent:
         validated_review = ParameterReview.model_validate(parsed_response)
         append_log(self.case_directory, "Response validated")
 
-        validated_review = _normalize_review(validated_review, entry.human_selected_method)
+        validated_review = _normalize_review(
+            validated_review,
+            entry.human_selected_method,
+            evidence=build_evidence_index(technology, lab_derived_parameters),
+        )
         append_log(
             self.case_directory,
             f"Calculation readiness: {validated_review.calculation_readiness}",

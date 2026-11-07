@@ -41,6 +41,7 @@ from src.models.recommendation import (
     InputAssessment,
     RecommendationEntry,
 )
+from src.tools.evidence_trace import check_available_value
 from src.skills.availability import (
     AVAILABLE,
     CONSTANT,
@@ -70,6 +71,7 @@ def normalise_inputs(
     items: list[InputAssessment],
     checks: list[str],
     report_unassessed: bool = True,
+    evidence: list[dict] | None = None,
 ) -> list[InputAssessment]:
     """One InputAssessment per framework input, in framework order, with the
     framework's tag. Used by both the recommendation ranking and Parameter
@@ -108,6 +110,15 @@ def normalise_inputs(
         ):
             checks.append(f"C5: {method_id}: input {record['name']!r} was marked available without a value and source; treated as missing")
             status = MISSING
+        if status == AVAILABLE and evidence is not None:
+            keep, message = check_available_value(
+                record["name"], record["tag"], item.value, item.derivation, evidence, unit=item.unit
+            )
+            if message:
+                checks.append(f"{message.split(':', 1)[0]}: {method_id}:{message.split(':', 1)[1]}")
+            if not keep:
+                status = MISSING
+                item.note = "; ".join(filter(None, [item.note, message]))
         item.status = status
         result.append(item)
     return result
@@ -156,12 +167,33 @@ def _describe_available(inputs: list[InputAssessment]) -> str:
     return "; ".join(parts)
 
 
+def _condition_gap(item) -> str | None:
+    """'conditions to confirm: ...' for a rule whose conditions the evidence cannot settle."""
+    return f"conditions to confirm: {item[1].get('conditions')}" if item[5] else None
+
+
+def _gap_count(item) -> int:
+    return len(_gaps(item[2].inputs)) + (1 if item[5] else 0)
+
+
+def _gap_names(item) -> str:
+    names = [gap.name for gap in _gaps(item[2].inputs)]
+    if item[5]:
+        names.append("confirmation of its conditions")
+    return ", ".join(names)
+
+
+def _describe_item_gaps(item) -> str:
+    return "; ".join(filter(None, [_describe_gaps(item[2].inputs), _condition_gap(item)]))
+
+
 def rank_candidates(
     flow: dict,
     candidate_rows: list[dict],
     assessment: FlowAssessment,
     linear_extrapolation: dict | None = None,
     laboratory_quantity: dict | None = None,
+    evidence: list[dict] | None = None,
 ) -> RecommendationEntry:
     """Build the RecommendationEntry for one flow from the model's assessment.
 
@@ -189,36 +221,38 @@ def rank_candidates(
         generic = (row.get("scope") or "").strip().lower() == "generic"
         operation_match = True if generic else bool(given and given.operation_match)
         has_conditions = bool((row.get("conditions") or "").strip())
+        # Conditions: true = hold; false = the evidence shows they do not hold;
+        # null = the evidence cannot tell. An unconfirmed rule may be offered as
+        # the alternative or listed, never recommended.
+        unconfirmed = has_conditions and given is not None and given.conditions_met is None
         conditions_met = True if not has_conditions else bool(given and given.conditions_met)
-        if has_conditions and given is not None and given.conditions_met is None:
-            checks.append(f"C4: {row['method_id']}: conditions not assessed; treated as not met")
         inputs = (
             normalise_inputs(
                 row["method_id"], row["input_records"], given.inputs if given else [], checks,
-                report_unassessed=given is not None,
+                report_unassessed=given is not None, evidence=evidence,
             )
             if operation_match
             else []
         )
         if operation_match and row.get("tier") == LINEAR_EXTRAPOLATION_TIER:
             _apply_linear_extrapolation(row, inputs, linear_extrapolation, laboratory_quantity, checks)
-        eligible = operation_match and conditions_met
-        available = eligible and not _gaps(inputs)
+        eligible = operation_match and (conditions_met or unconfirmed)
+        available = eligible and not unconfirmed and not _gaps(inputs)
         record = CandidateAssessment(
             method_id=row["method_id"],
             operation_match=operation_match,
             operation_note=(given.operation_note if given else None),
-            conditions_met=(conditions_met if has_conditions else None),
+            conditions_met=(None if (unconfirmed or not has_conditions) else conditions_met),
             conditions_note=(given.conditions_note if given else None),
             inputs=inputs,
         )
-        assessed_rows.append((order, row, record, eligible, available))
+        assessed_rows.append((order, row, record, eligible, available, unconfirmed))
 
     available_rows = [item for item in assessed_rows if item[4]]
     recommended = max(available_rows, key=lambda item: (item[1].get("tier") or 0, -item[0]), default=None)
     floor = recommended[1].get("tier") if recommended else 0
     higher = [item for item in assessed_rows if item[3] and not item[4] and (item[1].get("tier") or 0) > floor]
-    alternative = min(higher, key=lambda item: (len(_gaps(item[2].inputs)), -(item[1].get("tier") or 0), item[0]), default=None)
+    alternative = min(higher, key=lambda item: (_gap_count(item), -(item[1].get("tier") or 0), item[0]), default=None)
     others = sorted((item for item in higher if item is not alternative), key=lambda item: (-(item[1].get("tier") or 0), item[0]))
     if recommended and alternative:
         assert (alternative[1].get("tier") or 0) > (recommended[1].get("tier") or 0), "C1 violated"
@@ -235,11 +269,11 @@ def rank_candidates(
         sentences.append("No rule is available: every eligible rule lacks at least one required input.")
     not_available = [item for item in assessed_rows if item[3] and not item[4] and item is not recommended]
     if not_available:
-        sentences.append("Not available: " + "; ".join(f"{item[1]['method_id']} (Tier {item[1].get('tier')}, lacks {', '.join(gap.name for gap in _gaps(item[2].inputs))})" for item in sorted(not_available, key=lambda item: (-(item[1].get('tier') or 0), item[0]))) + ".")
+        sentences.append("Not available: " + "; ".join(f"{item[1]['method_id']} (Tier {item[1].get('tier')}, lacks {_gap_names(item)})" for item in sorted(not_available, key=lambda item: (-(item[1].get('tier') or 0), item[0]))) + ".")
     not_eligible = [item for item in assessed_rows if not item[3]]
     if not_eligible:
         reasons = []
-        for _, row, record, _, _ in not_eligible:
+        for _, row, record, _, _, _ in not_eligible:
             if not record.operation_match:
                 reasons.append(f"{row['method_id']} (operation does not match{': ' + record.operation_note if record.operation_note else ''})")
             else:
@@ -254,8 +288,8 @@ def rank_candidates(
         recommended_method=_reference(recommended[1]) if recommended else None,
         recommendation_rationale=" ".join(sentences),
         more_representative_method=_reference(alternative[1]) if alternative else None,
-        additional_information_required=(_describe_gaps(alternative[2].inputs) if alternative else "None"),
-        other_higher_tier_methods=("; ".join(f"{item[1]['method_id']} (Tier {item[1].get('tier')}): {_describe_gaps(item[2].inputs)}" for item in others) or None),
+        additional_information_required=(_describe_item_gaps(alternative) if alternative else "None"),
+        other_higher_tier_methods=("; ".join(f"{item[1]['method_id']} (Tier {item[1].get('tier')}): {_describe_item_gaps(item)}" for item in others) or None),
         candidate_assessments=[item[2] for item in assessed_rows],
         checks=checks,
     )

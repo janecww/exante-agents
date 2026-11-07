@@ -200,12 +200,16 @@ def build_flow_assessment_prompt(
     task = (
         "Assess EVERY rule listed in CANDIDATE RULES, in the order listed, and return one entry per rule in "
         "`candidates` (method_id copied exactly).\n\n"
-        "1. operation_match: for a rule with scope \"generic\", true. For a rule with scope \"named\", true only if "
-        "the flow's process step (FLOW: process_name, process_type, process_note) is one of the rule's "
-        "`operations` (an equivalent wording counts, e.g. \"stirring\" for \"agitation\"); otherwise false. Give "
-        "a short reason in operation_note.\n"
-        "2. conditions_met: null if the rule has no `conditions`. Otherwise true or false, judged from the case "
-        "evidence and the flow's process step; give a short reason in conditions_note.\n"
+        "1. operation_match: for a rule with scope \"generic\", true. For a rule with scope \"named\", true if the "
+        "flow's process step involves one of the rule's `operations`, judged from everything the evidence says "
+        "about that step (FLOW: process_name, process_type, process_note; and the LAB-DERIVED PARAMETERS of that "
+        "stage, e.g. a reaction time \"under stirring\" means the step involves stirring). A step can involve "
+        "several operations. Equivalent wording counts (e.g. \"stirring\" for \"agitation\"). Otherwise false. "
+        "Give a short reason in operation_note.\n"
+        "2. conditions_met: true if the evidence shows the rule's `conditions` hold for this flow; false only if "
+        "the evidence shows they do not hold; null if the rule has no conditions OR the evidence cannot tell "
+        "(e.g. a flow regime or a design assumption the laboratory data do not describe). Give a short reason in "
+        "conditions_note. Never answer false merely because the evidence is silent.\n"
         "3. inputs: if operation_match is false, return an empty list. Otherwise one entry for EVERY input in the "
         "rule's `inputs`, using exactly the input names given there, in the same order. Set `tag` to the tag "
         "shown in brackets. Set `status`, `value`, `unit`, `source`, `derivation` and `note` following the "
@@ -218,6 +222,7 @@ def build_flow_assessment_prompt(
     )
 
     skeleton = build_json_skeleton(FlowAssessment)
+    skeleton["candidates"][0]["conditions_met"] = None  # true, false or null (see TASK)
     expected_output = (
         "Return ONLY valid JSON of exactly this structure (one object in `candidates` per candidate rule; "
         "`inputs` may hold several objects). No markdown, no code fences, no extra fields.\n\n"

@@ -25,6 +25,11 @@ REQUIRED_COLUMNS = HEADERS
 
 INCLUDE_INVENTORY_YES = "yes"
 
+# The five categories of src/skills/component_definition.yaml. A confirmed
+# flow's "Final Component" must be one of them: anything else would match
+# no framework rule and silently end as "no rule available".
+VALID_COMPONENTS = ("reactant", "solvent", "catalyst", "energy", "heat")
+
 
 def _read_header_row(sheet) -> list:
     return [cell.value for cell in sheet[1]]
@@ -64,6 +69,7 @@ def import_confirmed_inventory_workbook(
     column_index = {name: index for index, name in enumerate(REQUIRED_COLUMNS)}
 
     entries = []
+    invalid = []
     for row in sheet.iter_rows(min_row=2, values_only=True):
         if row is None or all(value is None for value in row):
             continue  # skip fully blank rows (e.g. trailing rows)
@@ -74,14 +80,28 @@ def import_confirmed_inventory_workbook(
         if include_inventory.strip().lower() != INCLUDE_INVENTORY_YES:
             continue
 
+        component = row[column_index["Final Component"]]
+        normalized = str(component).strip().lower() if component is not None else ""
+        if normalized not in VALID_COMPONENTS:
+            invalid.append(
+                f"{row[column_index['Process ID']]} / {row[column_index['Inventory']]}: "
+                f"Final Component {component!r}"
+            )
+            continue
+
         entries.append(
             ConfirmedInventoryEntry(
                 process_id=row[column_index["Process ID"]],
                 process_name=row[column_index["Process Name"]],
                 inventory_name=row[column_index["Inventory"]],
                 inventory_source=row[column_index["Inventory Source"]],
-                component=row[column_index["Final Component"]],
+                component=normalized,
             )
         )
 
+    if invalid:
+        raise ValueError(
+            "Worksheet 1: every included flow needs a Final Component that is one of "
+            f"{', '.join(VALID_COMPONENTS)}. Correct these rows and resume:\n  " + "\n  ".join(invalid)
+        )
     return ConfirmedInventoryPackage(inventories=entries)

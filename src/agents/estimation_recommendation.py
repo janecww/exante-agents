@@ -34,6 +34,7 @@ from src.prompts.estimation_recommendation_prompt import (
     build_flow_assessment_prompt,
     prepare_flow_contexts,
 )
+from src.tools.evidence_trace import build_evidence_index
 from src.tools.method_ranking import rank_candidates
 from src.tools.output_writer import append_log, save_input, save_parsed, save_prompt, save_response
 
@@ -103,6 +104,7 @@ class EstimationRecommendationAgent:
         print("Running Estimation Recommendation Agent...")
         save_input(self.case_directory, "confirmed_inventory.yaml", confirmed_inventory.model_dump())
 
+        evidence = build_evidence_index(technology, self.lab_derived_parameters)
         entries = []
         for context in prepare_flow_contexts(technology, confirmed_inventory, self.estimation_methods):
             flow = context["flow"]
@@ -114,6 +116,7 @@ class EstimationRecommendationAgent:
                 assessment,
                 linear_extrapolation=context["linear_extrapolation"],
                 laboratory_quantity=context["laboratory_quantity"],
+                evidence=evidence,
             )
             recommended = entry.recommended_method.method_id if entry.recommended_method else None
             alternative = entry.more_representative_method.method_id if entry.more_representative_method else None
