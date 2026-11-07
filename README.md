@@ -201,13 +201,22 @@ python main.py resume
 
 The final result is `outputs/parsed/reviewed_recommendation.yaml` plus Worksheet 3 of the workbook.
 
+To revise a decision later in the same run, go back to a checkpoint, edit that worksheet, and resume:
+
+```bash
+python main.py back 1   # Worksheet 1, inventory review
+python main.py back 2   # Worksheet 2, method selection
+```
+
+This uses LangGraph's checkpoint history: results computed before the checkpoint are restored, not recomputed; after `resume`, an agent calls the model only for a prompt that changed (identical prompts reuse their saved reply). Nothing is deleted, the return is logged, and `back` never reaches into an earlier run of the case. `start` instead begins a new run, which re-runs classification.
+
 ### Tests
 
 ```bash
 python -m pytest -q --ignore=tests/test_estimation_recommendation_diagnostics.py --ignore=tests/test_estimation_recommendation_framework_coverage.py
 ```
 
-These tests replace the language model with canned responses (363 pass). The two ignored files call the real model and are diagnostics, not regression tests; they predate framework v2 and have not been updated.
+These tests replace the language model with canned responses (366 pass). The two ignored files call the real model and are diagnostics, not regression tests; they predate framework v2 and have not been updated.
 
 ---
 

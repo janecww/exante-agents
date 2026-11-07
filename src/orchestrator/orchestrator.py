@@ -568,3 +568,76 @@ def resume(case_directory: str | Path) -> GraphState:
         append_log(case_directory, "Workflow completed")
 
     return final_state
+
+
+# The two practitioner checkpoints, by the graph node that pauses for each.
+CHECKPOINT_NODES = {1: "human_review", 2: "human_method_selection"}
+
+
+def find_checkpoint(history, checkpoint: int):
+    """The most recent snapshot of the current run paused at `checkpoint`.
+
+    `history` is `graph.get_state_history(config)`, newest first. The
+    search stops at the start of the current run (the snapshot whose next
+    node is `__start__`), so `back` never returns into an earlier run.
+    Returns None when the current run has not reached that checkpoint.
+    """
+    node = CHECKPOINT_NODES[checkpoint]
+    for snapshot in history:
+        if snapshot.next == ("__start__",):
+            return None
+        if snapshot.next == (node,):
+            return snapshot
+    return None
+
+
+def go_back(case_directory: str | Path, checkpoint: int) -> GraphState:
+    """Return the current run to practitioner checkpoint 1 or 2.
+
+    Uses LangGraph's checkpoint history: the run continues from the
+    snapshot where it paused at that checkpoint, so the workflow pauses
+    there again and `resume()` continues as usual. Nothing is deleted: the
+    later snapshots stay in the history, and the new path branches from
+    the earlier one. Agent results computed before that checkpoint come
+    from the snapshot and are not recomputed; after `resume()`, agents
+    reuse a saved reply for any prompt that has not changed. The
+    worksheets are not rewritten: the practitioner edits the current
+    Worksheet 1 or 2 and resumes.
+
+    Raises `ValueError` for a checkpoint other than 1 or 2, and
+    `RuntimeError` when the current run has not reached that checkpoint.
+    """
+    if checkpoint not in CHECKPOINT_NODES:
+        raise ValueError(f"Checkpoint must be 1 or 2, not {checkpoint!r}.")
+    case_directory = Path(case_directory)
+
+    _, lab_derived_parameters = _load_laboratory_case(case_directory)
+    (
+        classification_agent,
+        recommendation_agent,
+        parameter_requirement_agent,
+        estimation_methods,
+    ) = _build_agents(case_directory, lab_derived_parameters)
+    config = {"configurable": {"thread_id": _thread_id_for(case_directory)}}
+
+    with _checkpointer_for(case_directory) as checkpointer:
+        graph = _build_case_graph(
+            case_directory,
+            classification_agent,
+            recommendation_agent,
+            parameter_requirement_agent,
+            lab_derived_parameters,
+            estimation_methods,
+            checkpointer,
+        )
+        snapshot = find_checkpoint(graph.get_state_history(config), checkpoint)
+        if snapshot is None:
+            raise RuntimeError(
+                f"The current run of {case_directory} has not reached checkpoint {checkpoint}; nothing to go back to."
+            )
+        # Continuing from the paused snapshot re-enters the checkpoint's
+        # node, which pauses again (no resume value is carried over).
+        final_state = graph.invoke(None, config=snapshot.config)
+
+    append_log(case_directory, f"Returned to checkpoint {checkpoint} (Worksheet {checkpoint}); later results are superseded once resumed")
+    return final_state

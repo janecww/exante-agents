@@ -9,6 +9,8 @@ the Human-in-the-Loop interrupts around the LCI Development Workbook.
 Usage:
     python main.py start   # run a new workflow, up to the Worksheet 1 review interrupt
     python main.py resume  # resume a previously interrupted workflow
+    python main.py back 1  # return the current run to Worksheet 1 (inventory review)
+    python main.py back 2  # return the current run to Worksheet 2 (method selection)
 
 The pipeline now pauses twice (Milestone 2A: human method selection was
 added after the estimation recommendation stage), so a full run calls
@@ -32,6 +34,7 @@ from pathlib import Path
 sys.stdout.reconfigure(encoding="utf-8")
 
 from src.orchestrator.graph_builder import build_graph, export_graph
+from src.orchestrator.orchestrator import go_back
 from src.orchestrator.orchestrator import resume as resume_workflow
 from src.orchestrator.orchestrator import run
 
@@ -116,8 +119,10 @@ def main() -> None:
         start()
     elif command == "resume":
         resume()
+    elif command == "back" and len(sys.argv) > 2 and sys.argv[2] in ("1", "2"):
+        _report(go_back(CASE_DIR, int(sys.argv[2])))
     else:
-        print(f"Unknown command: {command!r}. Use 'start' or 'resume'.")
+        print(f"Unknown command: {' '.join(sys.argv[1:])!r}. Use 'start', 'resume', 'back 1' or 'back 2'.")
         sys.exit(1)
 
 
