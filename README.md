@@ -55,7 +55,7 @@ Both agents that judge evidence (Estimation Recommendation and Parameter Identif
 | The rationale, written from the same input-by-input assessment, so it cannot contradict the ranking | For the selected method, the value and source of every input (Parameter Identification) |
 | Calculation readiness: every non-TARGET input available | |
 | Checks C1-C6 (below) | |
-| Every agent output matches a fixed JSON schema (Pydantic); every agent-proposed flow is flagged for practitioner review; every included flow's Final Component (checkpoint 1) is one of the five categories; the practitioner's selection (checkpoint 2) must be one of the two presented methods | |
+| Every agent output matches a fixed JSON schema (Pydantic); every agent-proposed flow is flagged for practitioner review; every included flow's Final Component (checkpoint 1) is one of the five categories; the practitioner's selection (checkpoint 2) must be a method shown for that flow (recommended, alternative, or listed under other higher-tier methods) | |
 
 **Checks.** A response that is not valid JSON or does not match the schema **stops** the workflow, with the raw response kept in `outputs/responses/`; nothing is repaired or retried. Smaller problems are handled conservatively and shown to the practitioner:
 
@@ -68,7 +68,7 @@ Both agents that judge evidence (Estimation Recommendation and Parameter Identif
 | C5 | An input marked available has a value and a source (otherwise treated as missing) | Worksheets 2 and 3 |
 | C6 | Evidence trace ([`evidence_trace.py`](src/tools/evidence_trace.py)): an available LAB value, or every number in its derivation, is found in the case workbook with Provenance Reported or Calculated (LITERATURE: anywhere in the evidence), allowing unit conversions and rounding; a parsed derivation must reproduce the value (otherwise treated as missing; an unparseable derivation is kept with a note) | Worksheets 2 and 3 |
 
-An invalid practitioner entry (a Final Component outside the five categories, or a selection that is not one of the two presented methods) stops the workflow with a message naming the row, so it can be corrected and resumed.
+An invalid practitioner entry (a Final Component outside the five categories, or a selection that is not a method shown for that flow) stops the workflow with a message naming the row, so it can be corrected and resumed.
 
 ---
 
@@ -126,7 +126,7 @@ Several candidate values without a way to choose make an input **ambiguous**, wh
 
 Each agent writes its output to YAML files in `outputs/parsed/` and to a worksheet of `outputs/parsed/lci_development_workbook.xlsx`.
 
-**Worksheet 2, Estimation Recommendations** has one row per flow: the recommended method, the rationale, the alternative ("more representative") method with the inputs it is missing, the other higher-tier methods with what each is missing, the checks, and the practitioner's selection. The full input-by-input assessment of every candidate is in `recommendation.yaml`.
+**Worksheet 2, Estimation Recommendations** has one row per flow: the recommended method, the rationale, the alternative ("more representative") method with the inputs it is missing, the other higher-tier methods with what each is missing, the checks, and the practitioner's selection. The practitioner may select the recommended method, the alternative, any listed higher-tier method, or none; the choice is recorded as recommended / alternative / other higher tier. The full input-by-input assessment of every candidate is in `recommendation.yaml`.
 
 **Worksheet 3, Parameter Review** has one row per input of the selected method: `Tag`, `Status` (available / missing / ambiguous), `Value`, `Unit`, `Source`, `Source Type`, `Derivation`, `Note` and `Consistency Check` (C2/C5).
 
@@ -206,7 +206,7 @@ The final result is `outputs/parsed/reviewed_recommendation.yaml` plus Worksheet
 python -m pytest -q --ignore=tests/test_estimation_recommendation_diagnostics.py --ignore=tests/test_estimation_recommendation_framework_coverage.py
 ```
 
-These tests replace the language model with canned responses (339 pass). The two ignored files call the real model and are diagnostics, not regression tests; they predate framework v2 and have not been updated.
+These tests replace the language model with canned responses (341 pass). The two ignored files call the real model and are diagnostics, not regression tests; they predate framework v2 and have not been updated.
 
 ---
 
@@ -253,7 +253,6 @@ run_scale_up_demo.py  stand-alone scale-up calculation prototype, not part of th
 
 - **One run per scenario.** Run-to-run variability has not been measured systematically. Across the reported runs, some flows with identical evidence got different results (see `docs/revision_R2_code_check.md`).
 - **No backward routing.** The practitioner cannot send the workflow back to an earlier checkpoint.
-- **Two options per flow.** The practitioner chooses between the recommended and one more representative method, or neither; no full ranked list is offered.
 - **Evidence matching is done by the model.** Both agents follow one definition of "available" and the code checks the two results against each other (C2), but whether a value in the evidence is the input a rule needs remains the model's judgement.
 - **No scale-up calculation.** The workflow ends with the parameter list. `run_scale_up_demo.py` is an unintegrated prototype.
 - **One process tested.** Only the starch nanocrystal (SNC) process and two variants of it.

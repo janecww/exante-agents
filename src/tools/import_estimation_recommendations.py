@@ -49,6 +49,7 @@ so re-ordering rows in the worksheet has no effect on which data is
 associated with which inventory.
 """
 
+import re
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -58,6 +59,7 @@ from src.models.reviewed_recommendation import (
     PENDING,
     SELECTED,
     SELECTION_ALTERNATIVE,
+    SELECTION_OTHER_HIGHER_TIER,
     SELECTION_NONE,
     SELECTION_RECOMMENDED,
     HumanSelectedMethod,
@@ -107,6 +109,15 @@ def _method_reference(
     )
 
 
+_LISTED_METHOD = re.compile(r"([A-Z]+-T\d+[a-z]?) \(Tier \d\)")
+
+
+def listed_other_higher_tier_methods(cell: object) -> list[str]:
+    """Method IDs listed in a row's "Other Higher-Tier Methods" cell, as
+    written by `src.tools.method_ranking` ("ENER-T5 (Tier 5): ...; ...")."""
+    return _LISTED_METHOD.findall(str(cell or ""))
+
+
 def _resolve_human_selection(
     method_id: object,
     process_id: object,
@@ -114,6 +125,7 @@ def _resolve_human_selection(
     recommended_method_id: object,
     more_representative_method_id: object,
     method_lookup: dict[str, dict],
+    other_higher_tier_method_ids: list[str] | None = None,
 ) -> tuple[HumanSelectedMethod | None, str, str]:
     """Validate and resolve one row's "Human Selected Method ID" cell.
 
@@ -139,14 +151,17 @@ def _resolve_human_selection(
         selection_source = SELECTION_RECOMMENDED
     elif method_id == more_representative_method_id:
         selection_source = SELECTION_ALTERNATIVE
+    elif method_id in (other_higher_tier_method_ids or []):
+        selection_source = SELECTION_OTHER_HIGHER_TIER
     else:
         raise ValueError(
             f"Invalid Human Selected Method ID {method_id!r} for Process ID "
             f"{process_id!r} / Inventory {inventory_name!r}: the human may "
-            "only select the recommended method "
-            f"({recommended_method_id!r}) or the more representative "
-            f"method ({more_representative_method_id!r}) for this "
-            "inventory; leave the cell blank to select neither."
+            "only select a method shown for this inventory -- the recommended "
+            f"method ({recommended_method_id!r}), the more representative "
+            f"method ({more_representative_method_id!r}), or one listed under "
+            f"Other Higher-Tier Methods ({other_higher_tier_method_ids or []}); "
+            "leave the cell blank to select none."
         )
 
     framework_row = method_lookup.get(method_id)
@@ -232,6 +247,9 @@ def import_estimation_recommendations_workbook(
                 recommended_method_id,
                 more_representative_method_id,
                 method_lookup,
+                listed_other_higher_tier_methods(
+                    row[column_index["Other Higher-Tier Methods (missing inputs)"]]
+                ),
             )
         )
 

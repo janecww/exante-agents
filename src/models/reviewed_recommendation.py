@@ -50,6 +50,8 @@ SELECTED = "selected"
 
 SELECTION_RECOMMENDED = "recommended"
 SELECTION_ALTERNATIVE = "alternative"
+# A method listed in Worksheet 2's "Other Higher-Tier Methods" column.
+SELECTION_OTHER_HIGHER_TIER = "other_higher_tier"
 SELECTION_NONE = "none"
 
 
