@@ -66,6 +66,8 @@ def _report(final_state) -> None:
         print(interrupt_info["message"])
         print(f"Workbook: {interrupt_info['lci_workbook_path']}")
         print("Once you have saved your edits, run: python main.py resume")
+        if final_state.get("recommendation_package") is not None:  # paused at Worksheet 2
+            print("To revise Worksheet 1 (inventory review) first, run: python main.py back 1")
         return
 
     confirmed_inventory = final_state["confirmed_inventory"]
@@ -99,6 +101,11 @@ def _report(final_state) -> None:
         )
 
     print("Workflow completed successfully.")
+    print(
+        "To revise a decision, go back to a checkpoint, edit that worksheet and resume: "
+        "python main.py back 1 (Worksheet 1, inventory review) or python main.py back 2 "
+        "(Worksheet 2, method selection)."
+    )
 
 
 def start() -> None:
