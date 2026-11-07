@@ -44,20 +44,28 @@ The workflow cannot yet go back to an earlier checkpoint. If the practitioner fi
 
 ## What is decided by code, and what by the language model
 
+Both agents that judge evidence (Estimation Recommendation and Parameter Identification) receive **one and the same definition of "available"** ([`src/skills/availability.py`](src/skills/availability.py), summarised under [Knowledge base](#knowledge-base)), inserted verbatim into both prompts.
+
 | Decided by deterministic code | Decided by the language model |
 |---|---|
 | Routing each flow to the rules of its category (the model never sees other categories' rules) | Classifying each laboratory flow into one of five categories, from the process description |
-| Whether Tier 3 linear extrapolation is possible from the laboratory quantity ([`linear_extrapolation.py`](src/tools/linear_extrapolation.py)); the result is passed to the model | Proposing additional flows that usually appear at industrial scale (e.g. heat) |
-| Every agent output must match a fixed JSON schema (Pydantic) | Deciding which candidate rules match the flow's unit operation |
-| Every cited method must exist in the knowledge base; its name and tier are taken from the knowledge base, not from the model | Deciding whether each rule's required inputs are available in the case evidence, including parameters recorded under different names |
-| Every confirmed flow must receive a recommendation | Ranking: recommending the highest-tier available rule, plus at most one more representative rule |
-| Every agent-proposed flow is flagged for practitioner review | Writing the rationale |
-| The practitioner's selection must be one of the two presented methods | Identifying, for the selected method, which parameters are available and where they come from |
-| Calculation readiness is recomputed from each parameter's status | |
+| Whether Tier 3 linear extrapolation is possible from the laboratory quantity ([`linear_extrapolation.py`](src/tools/linear_extrapolation.py)) | Proposing additional flows that usually appear at industrial scale (e.g. steam) |
+| The tag of every input (LAB, CONSTANT, DEFAULT, LITERATURE, TARGET), taken from the framework; DEFAULT values filled in | Whether a named rule's operation matches the flow's process step, and whether its conditions hold |
+| **Ranking** ([`method_ranking.py`](src/tools/method_ranking.py)): the recommended method (highest-tier available rule), the alternative (higher-tier rule with the fewest missing inputs) and the other higher-tier rules | The status of every input (available / missing / ambiguous), with value, unit, source and, for a derived value, the derivation |
+| The rationale, written from the same input-by-input assessment, so it cannot contradict the ranking | For the selected method, the value and source of every input (Parameter Identification) |
+| Calculation readiness: every non-TARGET input available | |
+| Checks C1-C5 (below) | |
+| Every agent output matches a fixed JSON schema (Pydantic); every agent-proposed flow is flagged for practitioner review; the practitioner's selection must be one of the two presented methods | |
 
-If a check fails, the workflow **stops** and keeps the model's raw response in `outputs/responses/`. Nothing is repaired or retried automatically.
+**Checks.** A response that is not valid JSON or does not match the schema **stops** the workflow, with the raw response kept in `outputs/responses/`; nothing is repaired or retried. Smaller problems are handled conservatively and shown to the practitioner:
 
-The code does **not** check that a recommended method's required inputs are actually present. That judgement is the model's, and the practitioner (checkpoint 2) and the Parameter Identification step act as the safeguards.
+| Check | What | Shown in |
+|---|---|---|
+| C1 | The alternative is a higher tier than the recommended method (holds by construction) | - |
+| C2 | Every input of the selected method has the same status in Parameter Identification as in the recommendation step | Worksheet 3, "Consistency Check" |
+| C3 | Tier 3: the model's status of the laboratory quantity agrees with the code's linear-extrapolation result (the code wins) | Worksheet 2, "Checks" |
+| C4 | Every rule and input was assessed, and none was invented (unassessed = not applicable / missing) | Worksheet 2, "Checks" |
+| C5 | An input marked available has a value and a source (otherwise treated as missing) | Worksheets 2 and 3 |
 
 ---
 
@@ -65,11 +73,14 @@ The code does **not** check that a recommended method's required inputs are actu
 
 | File | What it holds | Used by |
 |---|---|---|
-| [`src/skills/scaleup_decision_framework.xlsx`](src/skills/scaleup_decision_framework.xlsx), worksheet `rules` | 37 scale-up rules, one row per method | Estimation Recommendation, Parameter Identification |
+| [`src/skills/scaleup_decision_framework.xlsx`](src/skills/scaleup_decision_framework.xlsx), sheet `rules` | 37 scale-up rules, one row per method; the only sheet any agent sees | Estimation Recommendation, Parameter Identification |
+| same workbook, sheet `documentation` | Literature basis, confidence and limitations of each rule, for people; never sent to an agent | - |
+| same workbook, sheet `how_to_use` | Meaning of every sheet and column, the input tags and the definition of "available" | - |
 | [`src/skills/component_definition.yaml`](src/skills/component_definition.yaml) | Definitions of the five categories | Inventory Classification |
-| [`src/skills/source_priority.yaml`](src/skills/source_priority.yaml) | Evidence hierarchy (project data first, model knowledge last) | Estimation Recommendation |
 
-**Categories:** reactant, solvent, catalyst, energy (electricity only) and heat (thermal energy for heating or cooling).
+How the framework was restructured from its first version (tags, conditions, one output per category) is recorded per rule in [docs/framework_v2_changes.md](docs/framework_v2_changes.md).
+
+**Categories:** reactant, solvent, catalyst, energy (electricity only) and heat (thermal energy for heating or cooling). Every rule of a category produces the same quantity: kg reactant, kg solvent (fresh, after any recovery), kg catalyst, kWh electricity or kWh heat, per functional unit.
 
 **Tiers** (1 = least representative, 6 = most):
 
@@ -82,37 +93,39 @@ The code does **not** check that a recommended method's required inputs are actu
 | 5 | empirical scaling law | ENER-T5 power-law capacity scaling |
 | 6 | engineering equation | ENER-T6 agitation equation (Piccinno et al.) |
 
-**One rule, as stored (ENER-T4):**
+**One rule, as stored (ENER-T3):**
 
 | Column | Value |
 |---|---|
-| `component` / `tier` / `method_id` | Energy / 4 / ENER-T4 |
-| `method_name` | Rated power and duty time |
-| `operation_scope` | generic, derived from equipment specification |
-| `applies_when` | equipment power AND operating time AND load factor AND throughput available |
-| `rule_or_equation` | E = P_rated × t × load_factor / throughput |
-| `required_inputs` | equipment_nameplate_power_kW; operating_time_h; load_factor; throughput |
-| `input_sourcing` | LITERATURE_BENCHMARK_REQUIRED (other values: PROJECT_DATA_ONLY, PHYSICAL_CONSTANT_OK) |
-| `produces` | kWh electric per FU |
-| `reference` | standard electrical engineering relation |
+| `component` / `tier` / `method_id` | Energy / 3 / ENER-T3 |
+| `method_name` | Linear scaling of measured lab electricity |
+| `scope` / `operations` | generic / - |
+| `conditions` | - |
+| `rule_or_equation` | E_ind = E_lab x scale factor |
+| `inputs` | `lab_measured_electricity [LAB]; scale_factor [TARGET]` |
+| `produces` | kWh electricity per FU |
 
-The workbook also has columns that play **no role** in method recommendation (`confidence`, `confidence_color`, `escalate_if`, `bias_direction`, `limitations`, `scope_gap_flag`). In particular, "red" rules are not filtered out and `escalate_if` is not evaluated. See [Architecture.md §5.1](Architecture.md#51-rules-workbook).
+**Input tags and the definition of "available":**
+
+| Tag | Available when |
+|---|---|
+| LAB | Stated in the case evidence with Provenance "Reported" or "Calculated", for the same process step, or derived from such values by an allowed derivation (unit conversion; mass to volume with a stated density or 1 kg/L for water; power = energy / time; sums; fractions) |
+| CONSTANT | Always: a standard physical property, stated with its reference |
+| DEFAULT | Always: the value fixed by the rule |
+| LITERATURE | Only if the value and its citation are in the case evidence; the agent never looks up literature |
+| TARGET | Never decides availability (industrial scale, supplied later by the practitioner) |
+
+Several candidate values without a way to choose make an input **ambiguous**, which counts as not available. A rule is available when its operation matches, its conditions hold, and every non-TARGET input is available.
 
 ---
 
 ## Agent outputs
 
-Each agent writes its output to a YAML file in `outputs/parsed/` and to a worksheet of `outputs/parsed/lci_development_workbook.xlsx`. One row from the baseline case:
+Each agent writes its output to YAML files in `outputs/parsed/` and to a worksheet of `outputs/parsed/lci_development_workbook.xlsx`.
 
-**Worksheet 2, Estimation Recommendations (P06, trichloromethane):**
+**Worksheet 2, Estimation Recommendations** has one row per flow: the recommended method, the rationale, the alternative ("more representative") method with the inputs it is missing, the other higher-tier methods with what each is missing, the checks, and the practitioner's selection. The full input-by-input assessment of every candidate is in `recommendation.yaml`.
 
-| Recommended | More representative | Additional information required |
-|---|---|---|
-| SOLV-T3 Linear scaling of lab solvent charge (Tier 3) | SOLV-T4 Recovery fraction heuristic (Tier 4) | assumed recovery fraction |
-
-Each row also carries a free-text rationale stating which evidence made the recommended method available and why each higher tier was not.
-
-**Worksheet 3, Parameter Review** has one row per required parameter of the selected method, with columns `Status` (available / missing), `Value`, `Unit`, `Source`, `Source Type` and `Note`.
+**Worksheet 3, Parameter Review** has one row per input of the selected method: `Tag`, `Status` (available / missing / ambiguous), `Value`, `Unit`, `Source`, `Source Type`, `Derivation`, `Note` and `Consistency Check` (C2/C5).
 
 ---
 
@@ -125,7 +138,7 @@ Each row also carries a free-text rationale stating which evidence made the reco
 | Model | `nvidia/nemotron-3-ultra-550b-a55b:free` (NVIDIA Nemotron 3 Ultra) |
 | Access | OpenRouter API, through the OpenAI Python SDK ([`config.py`](config.py)) |
 | Sampling | `temperature = 0`, `seed = 42`; other settings at provider defaults |
-| Call style | One single-turn prompt per agent call; the reply must be JSON |
+| Call style | One single-turn prompt per call; the reply must be JSON. Estimation Recommendation and Parameter Identification make one call per flow |
 
 The first runs (27 Aug 2026) used `nvidia/nemotron-3-super-120b-a12b:free` with provider-default sampling. That free model was withdrawn in Nov 2026, so all scenarios were re-run with the settings above (5 Nov 2026).
 
@@ -190,7 +203,7 @@ The final result is `outputs/parsed/reviewed_recommendation.yaml` plus Worksheet
 python -m pytest -q --ignore=tests/test_estimation_recommendation_diagnostics.py --ignore=tests/test_estimation_recommendation_framework_coverage.py
 ```
 
-These tests replace the language model with canned responses (349 pass). The two ignored files call the real model and are diagnostics, not regression tests.
+These tests replace the language model with canned responses (316 pass). The two ignored files call the real model and are diagnostics, not regression tests; they predate framework v2 and have not been updated.
 
 ---
 
@@ -238,7 +251,7 @@ run_scale_up_demo.py  stand-alone scale-up calculation prototype, not part of th
 - **One run per scenario.** Run-to-run variability has not been measured systematically. Across the reported runs, some flows with identical evidence got different results (see `docs/revision_R2_code_check.md`).
 - **No backward routing.** The practitioner cannot send the workflow back to an earlier checkpoint.
 - **Two options per flow.** The practitioner chooses between the recommended and one more representative method, or neither; no full ranked list is offered.
-- **Input availability is judged by the model**, not checked in code (see the table above).
+- **Evidence matching is done by the model.** Both agents follow one definition of "available" and the code checks the two results against each other (C2), but whether a value in the evidence is the input a rule needs remains the model's judgement.
 - **No scale-up calculation.** The workflow ends with the parameter list. `run_scale_up_demo.py` is an unintegrated prototype.
 - **One process tested.** Only the starch nanocrystal (SNC) process and two variants of it.
 - **Human-in-the-loop not evaluated with users.** The checkpoints have been exercised by the authors but not tested with independent practitioners.
