@@ -33,6 +33,7 @@ Current milestone:
 """
 
 import json
+import re
 from pathlib import Path
 from typing import Callable
 
@@ -51,10 +52,15 @@ from src.models.reviewed_recommendation import (
 )
 from src.models.technology import Technology
 from src.prompts.parameter_requirement_prompt import build_parameter_requirement_prompt
-from src.skills.availability import TARGET, decides_availability, parse_inputs
+from src.skills.availability import LITERATURE, TARGET, decides_availability, parse_inputs
+from src.tools.estimation_methods_knowledge_base import framework_reference
 from src.tools.evidence_trace import build_evidence_index
 from src.tools.method_ranking import normalise_inputs
 from src.tools.output_writer import append_log, save_parsed, save_prompt, save_response
+
+
+# A number that is not part of an identifier such as P04, V1 or m3.
+_FREE_NUMBER = re.compile(r"(?<![A-Za-z_\d.])\d+(?:[.,]\d+)?(?![A-Za-z_\d])")
 
 
 def _response_appears_truncated(response: str) -> bool:
@@ -64,6 +70,23 @@ def _response_appears_truncated(response: str) -> bool:
     """
     stripped = response.rstrip()
     return not stripped.endswith(("}", "]"))
+
+
+def _sanitise_suggestion(name: str, text: str | None, flags: list[str]) -> str | None:
+    """Keep a 'where to find' suggestion only if it holds no number.
+
+    The suggestion may say where to look, never what the value is (the
+    definition of "available": the agent never supplies literature values).
+    Digits inside identifiers (P04, V1, m3) are allowed; a free-standing
+    number (a value, a range, a year of a citation) removes the suggestion
+    and is flagged (C7).
+    """
+    if not text or not str(text).strip():
+        return None
+    if _FREE_NUMBER.search(str(text)):
+        flags.append(f"C7: {name}: the suggestion of where to find it contained a number and was removed")
+        return None
+    return str(text).strip()
 
 
 def _normalize_review(
@@ -87,14 +110,22 @@ def _normalize_review(
         )
         for item in review.required_parameters
     ]
+    suggestions = {item.parameter: item.where_to_find for item in review.required_parameters}
     normalised = normalise_inputs(method.method_id, parse_inputs(method.inputs), items, flags, evidence=evidence)
-    review.required_parameters = [
-        RequiredParameter(
-            parameter=item.name, tag=item.tag, status=item.status, value=item.value, unit=item.unit,
-            source=item.source, derivation=item.derivation, note=item.note,
+    review.required_parameters = []
+    for item in normalised:
+        where_to_find, reference = None, None
+        if item.status != AVAILABLE:
+            where_to_find = _sanitise_suggestion(item.name, suggestions.get(item.name), flags)
+            if item.tag == LITERATURE:
+                reference = framework_reference(method.method_id)
+        review.required_parameters.append(
+            RequiredParameter(
+                parameter=item.name, tag=item.tag, status=item.status, value=item.value, unit=item.unit,
+                source=item.source, derivation=item.derivation, note=item.note,
+                where_to_find=where_to_find, framework_reference=reference,
+            )
         )
-        for item in normalised
-    ]
     review.missing_parameters = [
         item.parameter for item in review.required_parameters
         if decides_availability(item.tag) and item.status != AVAILABLE

@@ -14,7 +14,7 @@ scale-up calculation.
 
 import json
 
-from src.models.parameter_review import COMPUTED_FIELDS, ParameterReview
+from src.models.parameter_review import COMPUTED_FIELDS, COMPUTED_PARAMETER_FIELDS, ParameterReview
 from src.models.reviewed_recommendation import ReviewedRecommendationEntry
 from src.models.technology import Technology
 from src.prompts.estimation_recommendation_prompt import (
@@ -71,12 +71,21 @@ def build_parameter_requirement_prompt(
         "DEFINITION OF \"AVAILABLE\". For [DEFAULT=...] inputs, status is \"available\" and value is the default. "
         "For [TARGET] inputs, status is \"missing\" unless the evidence states the value. Never write a value that "
         "is not in the evidence, a stated default, a standard physical constant, or the result of an allowed "
-        "derivation."
+        "derivation.\n\n"
+        "WHERE TO FIND: for every input whose status is \"missing\" or \"ambiguous\", set `where_to_find` to one "
+        "short sentence telling the practitioner where this information could be obtained: the kind of source "
+        "(e.g. an equipment datasheet or nameplate, the laboratory record of the experiment, the technology "
+        "developer, a supplier, a pilot trial, published studies of the same unit operation, the planned "
+        "industrial design). For an ambiguous input, say what must be clarified. Never give a value, an estimate "
+        "or a range, and never name a specific publication, author or website. For an available input, set "
+        "`where_to_find` to null."
     )
 
     skeleton = build_json_skeleton(ParameterReview)
     for field in COMPUTED_FIELDS:
         skeleton.pop(field, None)
+    for field in COMPUTED_PARAMETER_FIELDS:
+        skeleton["required_parameters"][0].pop(field, None)
     expected_output = (
         "Return ONLY valid JSON of exactly this structure (`required_parameters` holds one object per input). "
         "No markdown, no code fences, no extra fields.\n\n"

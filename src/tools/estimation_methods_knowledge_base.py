@@ -24,6 +24,7 @@ This module performs no reasoning. On top of the raw rows it adds:
    (`TIER_NAME_BY_NUMBER`), used in output schemas and worksheets.
 """
 
+from functools import lru_cache
 from pathlib import Path
 
 from src.skills.availability import parse_inputs
@@ -84,3 +85,23 @@ def load_framework_documentation(path: str | Path) -> dict[str, dict]:
     """The `documentation` sheet, keyed by method_id (people-facing only)."""
     rows = load_excel_table(path, sheet_name=DOCUMENTATION_SHEET_NAME)
     return {row["method_id"]: row for row in rows if row.get("method_id")}
+
+
+DEFAULT_FRAMEWORK_PATH = Path(__file__).resolve().parents[1] / "skills" / "scaleup_decision_framework.xlsx"
+
+
+@lru_cache(maxsize=1)
+def framework_documentation() -> dict[str, dict]:
+    """The documentation sheet of the project's framework, loaded once.
+
+    Used only to add the framework's own references and caveats to
+    outputs for people (Worksheet 3, the scale-up prototype); never passed
+    to a prompt."""
+    return load_framework_documentation(DEFAULT_FRAMEWORK_PATH)
+
+
+def framework_reference(method_id: str) -> str | None:
+    """The rule's reference (and URL, if any) from the documentation sheet."""
+    row = framework_documentation().get(method_id) or {}
+    parts = [str(row[key]).strip() for key in ("reference", "url") if row.get(key)]
+    return " -- ".join(parts) or None

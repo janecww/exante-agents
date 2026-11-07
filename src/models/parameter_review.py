@@ -47,6 +47,17 @@ class RequiredParameter(BaseModel):
     source: str | None = None
     derivation: str | None = None
     note: str | None = None
+    # Only for a missing or ambiguous input: where the practitioner could
+    # obtain it (a kind of source, never a value or a citation). Numbers
+    # are removed by code.
+    where_to_find: str | None = None
+    # Filled by code, not the model: the selected rule's own reference from
+    # the framework's documentation sheet, for a missing LITERATURE input.
+    framework_reference: str | None = None
+
+
+# Fields of RequiredParameter that code fills; removed from the skeleton.
+COMPUTED_PARAMETER_FIELDS = ("framework_reference",)
 
 
 class ParameterReview(BaseModel):

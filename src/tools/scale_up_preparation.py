@@ -27,13 +27,8 @@ No industrial quantity is calculated, no scale factor is applied, and
 no missing value is estimated -- that is Milestone 2B.
 """
 
-from functools import lru_cache
-from pathlib import Path
-
 from src.models.parameter_review import MISSING_PARAMETERS, READY
-from src.tools.estimation_methods_knowledge_base import load_framework_documentation
-
-_FRAMEWORK_PATH = Path(__file__).resolve().parents[1] / "skills" / "scaleup_decision_framework.xlsx"
+from src.tools.estimation_methods_knowledge_base import framework_documentation
 from src.models.recommendation import EstimationMethodReference
 from src.models.reviewed_recommendation import (
     ReviewedRecommendationEntry,
@@ -118,11 +113,6 @@ def _is_optional_per_framework(parameter_name: str, required_input_tokens: list[
         token["optional"] and _normalize_parameter_name(token["name"]) == normalized_target
         for token in required_input_tokens
     )
-
-
-@lru_cache(maxsize=1)
-def _documentation() -> dict[str, dict]:
-    return load_framework_documentation(_FRAMEWORK_PATH)
 
 
 def prepare_scale_up_inputs(
@@ -213,7 +203,7 @@ def prepare_scale_up_inputs(
 
     # Framework v2 keeps these on the people-facing `documentation` sheet,
     # not in the agent-facing rules rows.
-    documentation = _documentation().get(selected_method.method_id, {})
+    documentation = framework_documentation().get(selected_method.method_id, {})
     assumptions_to_log = method_row.get("assumptions_to_log") or documentation.get("assumptions_to_log")
     limitations = method_row.get("limitations") or documentation.get("limitations")
 
