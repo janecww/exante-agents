@@ -10,6 +10,9 @@ the assessments they come from:
 - a rule is ELIGIBLE when its operations match the flow (generic rules
   always match) and its conditions hold (rules without conditions always
   hold);
+- a cut-off rule's threshold ("if <input> < <value>" in rule_or_equation)
+  is checked by code: an available input at or above it makes the rule
+  not applicable, whatever the model said about its conditions;
 - a rule is AVAILABLE when it is eligible and every input tagged LAB,
   CONSTANT, DEFAULT or LITERATURE is "available" (TARGET inputs never
   count). For Tier 3, the code's own linear-extrapolation result
@@ -38,6 +41,8 @@ because each has a conservative fallback:
 C1 (the alternative is a higher tier than the recommendation) holds by
 construction and is asserted.
 """
+
+import re
 
 from src.models.recommendation import (
     CandidateAssessment,
@@ -188,6 +193,29 @@ def _gap_names(item) -> str:
     return ", ".join(names)
 
 
+_THRESHOLD = re.compile(r"\bif ([A-Za-z0-9_]+) < ([0-9]+(?:\.[0-9]+)?)")
+
+
+def _threshold_exceeded(row: dict, inputs: list[InputAssessment]) -> str | None:
+    """For a cut-off rule ("... if <input> < <value>" in rule_or_equation):
+    a reason string when the input is available and not below the
+    threshold, so the rule does not apply; otherwise None (below the
+    threshold, or the value is not available, which is already a gap)."""
+    match = _THRESHOLD.search(str(row.get("rule_or_equation") or ""))
+    if not match:
+        return None
+    name, limit = match.group(1), float(match.group(2))
+    for item in inputs:
+        if item.name == name and item.status == AVAILABLE:
+            try:
+                value = float(str(item.value).strip())
+            except ValueError:
+                return None
+            if value >= limit:
+                return f"checked by code: {name} = {value:g} is not below {limit:g}"
+    return None
+
+
 def _not_applicable_reason(record: CandidateAssessment) -> str:
     """Why the model ruled a rule out, in its own words where it gave them."""
     if not record.operation_match:
@@ -248,6 +276,12 @@ def rank_candidates(
         )
         if operation_match and row.get("tier") == LINEAR_EXTRAPOLATION_TIER:
             _apply_linear_extrapolation(row, inputs, linear_extrapolation, laboratory_quantity, checks)
+        conditions_note = given.conditions_note if given else None
+        above = _threshold_exceeded(row, inputs)
+        if above:
+            # A cut-off's threshold is checked by code, never by the model.
+            conditions_met, unconfirmed, has_conditions = False, False, True
+            conditions_note = above
         eligible = operation_match and (conditions_met or unconfirmed)
         available = eligible and not unconfirmed and not _gaps(inputs)
         record = CandidateAssessment(
@@ -255,7 +289,7 @@ def rank_candidates(
             operation_match=operation_match,
             operation_note=(given.operation_note if given else None),
             conditions_met=(None if (unconfirmed or not has_conditions) else conditions_met),
-            conditions_note=(given.conditions_note if given else None),
+            conditions_note=conditions_note,
             inputs=inputs,
         )
         assessed_rows.append((order, row, record, eligible, available, unconfirmed))
