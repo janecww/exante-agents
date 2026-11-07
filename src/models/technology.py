@@ -34,6 +34,10 @@ class InventoryFlow(BaseModel):
     name: str | None = None
     value: float | None = None
     unit: str | None = None
+    # The Process Inventory sheet's "Provenance" cell (e.g. "Reported").
+    # Only "Reported"/"Calculated" values count as LAB evidence -- see
+    # src.skills.availability.
+    provenance: str | None = None
 
 
 class Process(BaseModel):

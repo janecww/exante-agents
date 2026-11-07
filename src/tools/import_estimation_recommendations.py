@@ -32,12 +32,10 @@ This tool performs no LLM reasoning and no inference:
   raises `ValueError` identifying the offending Process ID, Inventory,
   and method ID, rather than being silently corrected, ignored, or
   replaced with the recommendation.
-- Every retrieved field of a valid selection (method_name, tier,
-  tier_name, component, operation_scope, applies_when,
-  rule_or_equation, required_inputs, input_sourcing, sequence_with,
-  produces, bias_direction, assumptions_to_log, escalate_if,
-  confidence, reference, reference_note, url, limitations,
-  scope_gap_flag) is copied verbatim from the knowledge base -- never
+- Every retrieved field of a valid selection (the agent-facing `rules`
+  columns: method_name, tier, component, scope, operations, conditions,
+  rule_or_equation, inputs, depends_on, produces; plus the derived
+  tier_name) is copied verbatim from the knowledge base -- never
   duplicated or re-derived in Python (only `tier_name` is derived, by
   `src.tools.estimation_methods_knowledge_base`, not by this module).
   Once selected, the human's decision is
@@ -74,29 +72,7 @@ from src.tools.export_estimation_recommendations import HEADERS, SHEET_TITLE
 # compatibility field already added by
 # `src.tools.estimation_methods_knowledge_base.load_estimation_methods_knowledge_base`,
 # so it is retrieved here exactly like every genuine column.
-_METHOD_DEFINITION_COLUMNS = [
-    "method_id",
-    "method_name",
-    "tier",
-    "tier_name",
-    "component",
-    "operation_scope",
-    "applies_when",
-    "rule_or_equation",
-    "required_inputs",
-    "input_sourcing",
-    "sequence_with",
-    "produces",
-    "bias_direction",
-    "assumptions_to_log",
-    "escalate_if",
-    "confidence",
-    "reference",
-    "reference_note",
-    "url",
-    "limitations",
-    "scope_gap_flag",
-]
+_METHOD_DEFINITION_COLUMNS = list(HumanSelectedMethod.model_fields)
 
 
 def _method_lookup(estimation_methods: list[dict]) -> dict[str, dict]:
@@ -278,6 +254,9 @@ def import_estimation_recommendations_workbook(
                 ),
                 additional_information_required=row[
                     column_index["Additional Information Required"]
+                ],
+                other_higher_tier_methods=row[
+                    column_index["Other Higher-Tier Methods (missing inputs)"]
                 ],
                 human_selected_method=human_selected_method,
                 human_selection_status=human_selection_status,

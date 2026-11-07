@@ -1,63 +1,26 @@
 """Estimation Recommendation Agent for the Stage 1 pLCA-agents workflow.
 
-The Estimation Recommendation Agent recommends, for every confirmed
-foreground inventory, the most appropriate estimation method that can
-currently be applied -- retrieved from the authoritative estimation
-methods knowledge base (`src/skills/scaleup_decision_framework.xlsx`),
-never invented -- and identifies a more representative method plus
-what additional information it would need, where one exists. The human
-remains responsible for selecting the final estimation method (the
-"Selected Method" column of the exported workbook).
+For every confirmed flow, one language-model call assesses every
+candidate rule of the flow's category against the case evidence, using
+the shared definition of "available" (`src.skills.availability`). The
+code then ranks the rules and writes the rationale from that assessment
+(`src.tools.method_ranking.rank_candidates`): the recommended method is
+the highest-tier available rule, and the alternative is a higher-tier
+rule that would become available with more inputs. The practitioner
+selects the final method afterwards (Worksheet 2).
 
-Shared Stage 1 skills, the estimation methods knowledge base, the
-case's lab-derived parameters (both the process inventory quantities
-and the lab-derived parameters come from the case's single,
-unified `laboratory_case_workbook.xlsx`, loaded once by the
-orchestrator), an LLM callable, and the case's output directory are
-injected by the orchestrator during construction rather than resolved
-by the agent itself. This agent consumes only `ConfirmedInventoryPackage`
-(plus `Technology` for the process inventory's quantitative evidence)
-from the graph state; it never reads Excel directly.
+Per flow:
+    build prompt -> invoke LLM -> persist raw response (always, before
+    parsing) -> parse JSON -> validate into FlowAssessment -> rank in code
+    (framework tags, Tier 3 from linear extrapolation, checks C1/C3/C4/C5)
+Then: persist recommendation.yaml -> return the RecommendationPackage.
 
-Current milestone:
-    Agent -> build prompt -> invoke LLM -> persist raw response (always,
-    before parsing is even attempted) -> parse JSON -> validate into
-    RecommendationPackage -> verify every cited method_id actually
-    exists in the knowledge base (and normalize its method_name/tier_name
-    from the knowledge base) -> verify every confirmed inventory sent to
-    the LLM has a corresponding recommendation entry in the response ->
-    persist parsed package -> return the validated RecommendationPackage
-
-    "Retrieve, never invent" is enforced deterministically, not left to
-    prompt compliance alone: an LLM-cited method_id absent from the
-    knowledge base is treated the same as any other schema-compliance
-    failure and raised as-is, never silently repaired or retried. A
-    null-like method_id (e.g. the string "null", or "") is normalized
-    to a genuine `None` rather than rejected -- it is a non-compliant
-    spelling of "no method applies", not a hallucinated citation.
-
-    Completeness is enforced the same way, not just correctness: a real
-    observed failure mode (found via manual case evaluation, not caught
-    by any check until now) is the LLM's response silently dropping one
-    confirmed inventory from the list entirely, producing a
-    schema-valid but incomplete `RecommendationPackage`. See
-    `_verify_every_confirmed_inventory_has_a_recommendation` -- it
-    raises `ValueError` naming exactly which inventory/inventories are
-    missing, rather than letting an incomplete package through silently.
-
-    If the raw response is not valid JSON (e.g. truncated by the model's
-    output limit -- see `config.invoke_llm`'s `finish_reason` check),
-    the raw response has already been saved by that point; the
-    `json.JSONDecodeError` raised is re-thrown with its message enriched
-    with the saved response's path, length, and a truncation guess, with
-    line/column/position still pointing at the real parse failure. No
-    retry, repair, or fabrication is attempted -- this milestone is
-    about making the failure inspectable, not automatically recovering
-    from it.
-
-Future milestone:
-    Human selection of the final method (Scientific Review of the
-    recommendation itself is out of scope here).
+A response that is not valid JSON, or does not match the schema, stops
+the workflow with the raw response kept on disk; it is never repaired or
+retried. Smaller problems in an otherwise valid answer (an input left
+out, a status that is not one of the three allowed values, an
+"available" input without a value) are handled conservatively by the
+ranking and recorded in the entry's `checks`.
 """
 
 import json
@@ -65,185 +28,29 @@ from pathlib import Path
 from typing import Any, Callable
 
 from src.models.confirmed_inventory import ConfirmedInventoryPackage
-from src.models.recommendation import EstimationMethodReference, RecommendationPackage
+from src.models.recommendation import FlowAssessment, RecommendationPackage
 from src.models.technology import Technology
 from src.prompts.estimation_recommendation_prompt import (
-    build_estimation_recommendation_prompt,
+    build_flow_assessment_prompt,
+    prepare_flow_contexts,
 )
-from src.tools.output_writer import (
-    append_log,
-    save_input,
-    save_parsed,
-    save_prompt,
-    save_response,
-)
-
-
-_NULL_LIKE_METHOD_IDS = {"", "null", "none", "n/a", "na"}
+from src.tools.method_ranking import rank_candidates
+from src.tools.output_writer import append_log, save_input, save_parsed, save_prompt, save_response
 
 
 def _response_appears_truncated(response: str) -> bool:
-    """Best-effort guess at whether a raw response was cut off mid-output.
-
-    The agent only has the raw string here, not the API's own
-    `finish_reason` (that signal is checked, and printed, inside
-    `config.invoke_llm` itself -- see its docstring). A complete JSON
-    response practically always ends on a closing brace or bracket
-    after trailing whitespace; anything else is a strong (though not
-    certain) sign of truncation.
-    """
-    stripped = response.rstrip()
-    return not stripped.endswith(("}", "]"))
+    """Best-effort guess at whether a raw response was cut off mid-output."""
+    return not response.rstrip().endswith(("}", "]"))
 
 
-def _method_lookup(estimation_methods: list[dict]) -> dict[str, dict]:
-    """Map every known method_id to its authoritative method_name/tier_name.
-
-    `tier_name` is deterministically propagated from this lookup (see
-    `_normalize_reference`), never left to the LLM to infer -- a
-    recommendation's tier is a property of the candidate row it cites,
-    not a judgement call.
-    """
-    return {
-        row["method_id"]: {
-            "method_name": row.get("method_name"),
-            "tier_name": row.get("tier_name"),
-        }
-        for row in estimation_methods
-        if row.get("method_id")
-    }
-
-
-def _is_null_like(method_id: str | None) -> bool:
-    """Whether a method_id is a null-like placeholder, not a real citation.
-
-    Despite explicit prompt instructions to use the JSON literal `null`
-    when no method applies, an LLM will sometimes instead emit the
-    string `"null"`, an empty string, or similar -- inside an otherwise
-    well-formed method object. These are not hallucinated method IDs;
-    they are non-compliant spellings of "no method", and must be
-    treated exactly like a genuine null rather than failing validation.
-    """
-    return method_id is None or method_id.strip().lower() in _NULL_LIKE_METHOD_IDS
-
-
-def _normalize_reference(
-    reference: EstimationMethodReference | None,
-    method_lookup: dict[str, dict],
-    unknown_ids: set[str],
-) -> EstimationMethodReference | None:
-    """Normalize one method reference; record its method_id if unknown.
-
-    Returns `None` if `reference` is absent or its `method_id` is
-    null-like (see `_is_null_like`) -- both are treated as "no method".
-    A `method_id` that is present, not null-like, and not found in the
-    knowledge base is a genuine hallucination: it is recorded in
-    `unknown_ids` and the reference is returned unchanged so the caller
-    can raise with the full list of offending IDs.
-    """
-    if reference is None or _is_null_like(reference.method_id):
-        return None
-    if reference.method_id not in method_lookup:
-        unknown_ids.add(reference.method_id)
-        return reference
-    authoritative = method_lookup[reference.method_id]
-    reference.method_name = authoritative["method_name"]
-    reference.tier_name = authoritative["tier_name"]
-    return reference
-
-
-def _normalize_and_validate_method_references(
-    package: RecommendationPackage, method_lookup: dict[str, dict]
-) -> RecommendationPackage:
-    """Verify every cited method_id is real, and normalize its name/tier.
-
-    Raises `ValueError` listing every unrecognised method_id -- an LLM
-    citing a method_id absent from the knowledge base is exactly the
-    "inventing a method" failure this agent must never allow through.
-    Null-like placeholders (see `_is_null_like`) are normalized to a
-    genuine `None` rather than rejected. For every valid reference,
-    `method_name` and `tier_name` are overwritten from the knowledge
-    base, so neither the LLM's copy of the name nor an inferred tier
-    can ever diverge from the authoritative row.
-    """
-    unknown_ids: set[str] = set()
-
-    for entry in package.recommendations:
-        entry.recommended_method = _normalize_reference(
-            entry.recommended_method, method_lookup, unknown_ids
-        )
-        entry.more_representative_method = _normalize_reference(
-            entry.more_representative_method, method_lookup, unknown_ids
-        )
-
-    if unknown_ids:
-        raise ValueError(
-            "Estimation Recommendation Agent cited method_id(s) not found "
-            f"in the estimation methods knowledge base: {sorted(unknown_ids)}"
-        )
-
-    return package
-
-
-def _inventory_key(process_id: str | None, inventory_name: str | None) -> tuple[str, str]:
-    return (
-        (process_id or "").strip().lower(),
-        (inventory_name or "").strip().lower(),
-    )
-
-
-def _verify_every_confirmed_inventory_has_a_recommendation(
-    confirmed_inventory: ConfirmedInventoryPackage, package: RecommendationPackage
-) -> None:
-    """Every confirmed inventory sent to the LLM must come back with
-    exactly one recommendation entry -- a real observed failure mode is
-    the LLM's response silently dropping one inventory from the list
-    entirely (found via manual case evaluation, not caught by any
-    existing check). This is the completeness counterpart to
-    `_normalize_and_validate_method_references`: that one catches an
-    invented method_id; this one catches a missing inventory. Raises
-    `ValueError` naming exactly which confirmed inventory (or
-    inventories) are absent, rather than silently returning an
-    incomplete package.
-    """
-    expected = {
-        _inventory_key(entry.process_id, entry.inventory_name)
-        for entry in confirmed_inventory.inventories
-    }
-    actual = {
-        _inventory_key(entry.process_id, entry.inventory_name)
-        for entry in package.recommendations
-    }
-    missing = expected - actual
-
-    if missing:
-        missing_labels = sorted(
-            f"{entry.process_id}/{entry.inventory_name}"
-            for entry in confirmed_inventory.inventories
-            if _inventory_key(entry.process_id, entry.inventory_name) in missing
-        )
-        raise ValueError(
-            "Estimation Recommendation Agent's response is missing a "
-            "recommendation for confirmed inventory/inventories: "
-            f"{missing_labels}. Every confirmed inventory sent to the LLM "
-            "must come back with exactly one recommendation entry -- this "
-            "is never silently accepted as an incomplete result."
-        )
+def _artifact_name(flow: dict) -> str:
+    process_id = (flow.get("process_id") or "unknown").strip()
+    inventory_name = (flow.get("inventory_name") or "unknown").strip().lower().replace(" ", "_")
+    return f"estimation_recommendation_{process_id}_{inventory_name}"
 
 
 class EstimationRecommendationAgent:
-    """Estimation Recommendation Agent: recommends an estimation method
-    for every confirmed foreground inventory.
-
-    Shared Stage 1 skills, the estimation methods knowledge base, the
-    case's lab-derived parameters, an LLM callable, and the case's
-    output directory are provided by the orchestrator during
-    construction. The current implementation builds the prompt, invokes
-    the LLM, persists the input/prompt/response/parsed artifacts, and
-    validates the raw JSON response into a `RecommendationPackage`
-    using Pydantic, then checks every cited method_id against the
-    knowledge base.
-    """
+    """Recommends an estimation method for every confirmed flow (see module docstring)."""
 
     def __init__(
         self,
@@ -253,154 +60,72 @@ class EstimationRecommendationAgent:
         lab_derived_parameters: list[dict],
         case_directory: str | Path,
     ) -> None:
-        """Initialise the agent.
-
-        Parameters
-        ----------
-        llm
-            A `prompt -> str` callable injected by the orchestrator.
-        skills
-            Shared Stage 1 skills injected by the orchestrator. Only
-            `source_priority` is used.
-        estimation_methods
-            Every row of the estimation methods knowledge base
-            (`src/skills/scaleup_decision_framework.xlsx`), as a list
-            of dicts. The authoritative source of every method_id this
-            agent may cite.
-        lab_derived_parameters
-            Rows from the "Lab-Derived Parameters" worksheet of the
-            case's unified `laboratory_case_workbook.xlsx`.
-        case_directory
-            The case directory whose `outputs/` tree execution
-            artifacts are persisted under.
-        """
+        """`skills` is accepted for a uniform agent interface; this agent
+        uses none of them (see `src.prompts.estimation_recommendation_prompt`)."""
         self.llm = llm
         self.skills = skills
         self.estimation_methods = estimation_methods
         self.lab_derived_parameters = lab_derived_parameters
         self.case_directory = Path(case_directory)
 
-    def __call__(
-        self, technology: Technology, confirmed_inventory: ConfirmedInventoryPackage
-    ) -> RecommendationPackage:
-        """Build the prompt, invoke the LLM, and return a validated package.
-
-        Parameters
-        ----------
-        technology
-            The full Technology model for the case (process context only).
-        confirmed_inventory
-            The human-confirmed inventory to recommend estimation
-            methods for.
-
-        Returns
-        -------
-        RecommendationPackage
-            The LLM's response, parsed as JSON, validated into a
-            `RecommendationPackage`, and checked so every cited
-            method_id exists in the estimation methods knowledge base.
-            The raw response is always persisted before parsing is even
-            attempted, so it survives on disk regardless of what
-            happens next. Raises `json.JSONDecodeError` (message
-            enriched with the saved response's path, length, and
-            truncation guess -- see `_response_appears_truncated` --
-            while its `.lineno`/`.colno`/`.pos` still point at the
-            original parse failure), a Pydantic `ValidationError`, or
-            `ValueError` (unknown method_id, or a confirmed inventory
-            missing from the response) if the response does not comply;
-            it is never repaired or retried.
-        """
-        print("Running Estimation Recommendation Agent...")
-
-        save_input(
-            self.case_directory,
-            "confirmed_inventory.yaml",
-            confirmed_inventory.model_dump(),
-        )
-
-        prompt = build_estimation_recommendation_prompt(
-            technology,
-            confirmed_inventory,
-            self.estimation_methods,
-            self.lab_derived_parameters,
-            self.skills,
-        )
-        save_prompt(self.case_directory, "estimation_recommendation.txt", prompt)
-        append_log(self.case_directory, "Estimation Recommendation")
-        append_log(self.case_directory, "Prompt generated")
+    def _assess(self, technology: Technology, context: dict) -> FlowAssessment:
+        flow = context["flow"]
+        artifact = f"{_artifact_name(flow)}.txt"
+        prompt = build_flow_assessment_prompt(technology, context, self.lab_derived_parameters)
+        save_prompt(self.case_directory, artifact, prompt)
+        append_log(self.case_directory, f"Estimation Recommendation: {flow['process_id']} / {flow['inventory_name']}")
 
         response = self.llm(prompt)
-        append_log(self.case_directory, "LLM invoked")
-
-        # Persisted before any parsing is attempted -- and therefore
-        # still on disk exactly as received even if json.loads() below
-        # fails -- using the project's existing raw-response artifact
-        # convention (outputs/responses/), not a new storage mechanism.
-        response_path = save_response(
-            self.case_directory, "estimation_recommendation.txt", response
-        )
-        append_log(self.case_directory, "Response saved")
-
-        response_length = len(response)
+        response_path = save_response(self.case_directory, artifact, response)
         appears_truncated = _response_appears_truncated(response)
         append_log(
             self.case_directory,
-            f"Raw response length: {response_length} chars; "
-            f"appears truncated: {appears_truncated}",
+            f"Response saved ({len(response)} chars; appears truncated: {appears_truncated})",
         )
-
         try:
-            parsed_response = json.loads(response)
+            parsed = json.loads(response)
         except json.JSONDecodeError as exc:
-            diagnostic = (
-                "Estimation recommendation LLM returned invalid JSON.\n"
-                f"Raw response saved to: {response_path}\n"
-                f"JSON error: {exc}"
-            )
-            print(diagnostic)
-            append_log(
-                self.case_directory,
-                f"Response validation failed: invalid JSON ({exc})",
-            )
-            # Re-raised as a JSONDecodeError (not a different exception
-            # type) so existing callers that catch json.JSONDecodeError
-            # keep working; `doc`/`pos` are carried over unchanged so
-            # `.lineno`/`.colno`/`.pos` still describe the real parse
-            # failure. The response is never repaired, truncated, or
-            # fabricated -- only the error message gains context.
+            append_log(self.case_directory, f"Response validation failed: invalid JSON ({exc})")
             raise json.JSONDecodeError(
-                "Estimation Recommendation Agent: the LLM returned "
-                f"invalid/truncated JSON (response length: {response_length} "
-                f"chars, appears truncated: {appears_truncated}). Raw "
-                f"response saved to: {response_path}. Original error: "
-                f"{exc.msg}",
+                f"Estimation Recommendation Agent ({flow['process_id']} / {flow['inventory_name']}): the LLM "
+                f"returned invalid/truncated JSON (response length: {len(response)} chars, appears truncated: "
+                f"{appears_truncated}). Raw response saved to: {response_path}. Original error: {exc.msg}",
                 exc.doc,
                 exc.pos,
             ) from exc
-
-        validated_package = RecommendationPackage.model_validate(parsed_response)
+        assessment = FlowAssessment.model_validate(parsed)
         append_log(self.case_directory, "Response validated")
+        return assessment
 
-        validated_package = _normalize_and_validate_method_references(
-            validated_package, _method_lookup(self.estimation_methods)
-        )
-        append_log(
-            self.case_directory, "Method references verified against knowledge base"
-        )
+    def __call__(
+        self, technology: Technology, confirmed_inventory: ConfirmedInventoryPackage
+    ) -> RecommendationPackage:
+        print("Running Estimation Recommendation Agent...")
+        save_input(self.case_directory, "confirmed_inventory.yaml", confirmed_inventory.model_dump())
 
-        _verify_every_confirmed_inventory_has_a_recommendation(
-            confirmed_inventory, validated_package
-        )
-        append_log(
-            self.case_directory,
-            "Confirmed that every confirmed inventory has a recommendation entry",
-        )
+        entries = []
+        for context in prepare_flow_contexts(technology, confirmed_inventory, self.estimation_methods):
+            flow = context["flow"]
+            print(f"  assessing {flow['process_id']} / {flow['inventory_name']}...")
+            assessment = self._assess(technology, context)
+            entry = rank_candidates(
+                flow,
+                context["candidate_rows"],
+                assessment,
+                linear_extrapolation=context["linear_extrapolation"],
+                laboratory_quantity=context["laboratory_quantity"],
+            )
+            recommended = entry.recommended_method.method_id if entry.recommended_method else None
+            alternative = entry.more_representative_method.method_id if entry.more_representative_method else None
+            append_log(
+                self.case_directory,
+                f"Ranked: recommended={recommended}, alternative={alternative}, checks={len(entry.checks)}",
+            )
+            for check in entry.checks:
+                append_log(self.case_directory, f"  {check}")
+            entries.append(entry)
 
-        save_parsed(
-            self.case_directory,
-            "recommendation.yaml",
-            validated_package.model_dump(),
-        )
+        package = RecommendationPackage(recommendations=entries)
+        save_parsed(self.case_directory, "recommendation.yaml", package.model_dump())
         append_log(self.case_directory, "Parsed recommendation package saved")
-
-        return validated_package
+        return package

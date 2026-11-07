@@ -59,6 +59,8 @@ HEADERS = [
     "More Representative Method ID",
     "More Representative Method",
     "Additional Information Required",
+    "Other Higher-Tier Methods (missing inputs)",
+    "Checks",
     "Human Selected Method ID",
 ]
 
@@ -129,6 +131,8 @@ def _entry_row(entry: RecommendationEntry, human_selected_method_id: str) -> lis
         _method_id(entry.more_representative_method),
         _method_name(entry.more_representative_method),
         entry.additional_information_required or "",
+        entry.other_higher_tier_methods or "",
+        "\n".join(entry.checks),
         human_selected_method_id or "",
     ]
 

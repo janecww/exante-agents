@@ -1,53 +1,52 @@
-"""Loader for the authoritative estimation methods knowledge base
-(`src/skills/scaleup_decision_framework.xlsx`), the "new" (2026-08)
-`rules`/`how_to_use` workbook format that replaced the original
-single-sheet `scaleup_decision_framework` worksheet.
+"""Loader for the estimation methods knowledge base
+(`src/skills/scaleup_decision_framework.xlsx`, framework v2).
 
-This is a thin wrapper around the generic, deterministic
-`src.tools.excel_table_loader.load_excel_table` -- it performs no
-reasoning and never invents a method -- but it owns two pieces of
-domain knowledge specific to this one workbook that would otherwise
-have to be duplicated at every call site:
+The workbook has three sheets (see its `how_to_use` sheet):
 
-1. The method rows live on the `rules` worksheet, not the workbook's
-   first/active sheet (that is `how_to_use`, human-readable
-   documentation of how this code uses the `rules` sheet and which
-   framework logic is not implemented -- not a data table, and never
-   read by any agent). Every caller must therefore select the `rules`
-   sheet explicitly.
+- `rules`: the only sheet any agent sees. One row per method: component,
+  tier, method_id, method_name, scope, operations, conditions,
+  rule_or_equation, inputs, depends_on, produces.
+- `documentation`: literature basis and caveats per rule, for people
+  only. Loaded separately by `load_framework_documentation`, never
+  passed to a prompt.
+- `how_to_use`: human-readable explanation, never read by code.
 
-2. `tier_name` compatibility: the current workbook format numbers each
-   method's tier (1-6) rather than naming it, but every consumer of
-   this knowledge base written before this format change --
-   `EstimationMethodReference.tier_name` /
-   `HumanSelectedMethod.tier_name` (LLM-facing and human-selection
-   schemas), the "Tier" column of the "Parameter Review" worksheet, and
-   the still-present (not wired into the Stage 1 graph)
-   `src/tools/scale_up_calculation.py` Milestone 2B prototype -- expects
-   a descriptive `tier_name` string on every row, e.g. "linear
-   extrapolation". Rather than guess a naming, `TIER_NAME_BY_NUMBER`
-   below was derived by cross-referencing every one of the 36
-   method_ids shared between the retired single-sheet workbook (which
-   had both a numeric position and a `tier_name` string per row) and
-   this format: every method_id's numeric tier and its old `tier_name`
-   matched up 1:1 and with no exceptions (verified programmatically,
-   not assumed), so this mapping is a verified equivalence, not a
-   guess. `load_estimation_methods_knowledge_base` uses it to add a
-   `tier_name` key to every row so every existing consumer keeps
-   working unchanged; new Stage 1 code should prefer the row's own,
-   authoritative `tier` (int) field directly instead.
+This module performs no reasoning. On top of the raw rows it adds:
+
+1. `input_records`: the rule's `inputs` parsed into ``{name, tag,
+   default}`` records by `src.skills.availability.parse_inputs`. A
+   malformed `inputs` cell raises `ValueError` at load time.
+2. `required_inputs`: the input names joined by "; " -- a derived
+   compatibility field for the stand-alone scale-up prototype
+   (`src.tools.scale_up_preparation` / `scale_up_calculation`), which is
+   not part of the workflow.
+3. `tier_name`: a descriptive label for the numeric tier
+   (`TIER_NAME_BY_NUMBER`), used in output schemas and worksheets.
 """
 
 from pathlib import Path
 
+from src.skills.availability import parse_inputs
 from src.tools.excel_table_loader import load_excel_table
 
 RULES_SHEET_NAME = "rules"
+DOCUMENTATION_SHEET_NAME = "documentation"
 
-# Verified 1:1 against the retired workbook's tier_name/method_id
-# pairs -- see this module's docstring. Do not extend or reinterpret
-# without re-verifying against the framework's own tier cascade
-# (`how_to_use`, section 1, lists the same names).
+# The agent-facing columns of the `rules` sheet, in sheet order.
+RULE_COLUMNS = [
+    "component",
+    "tier",
+    "method_id",
+    "method_name",
+    "scope",
+    "operations",
+    "conditions",
+    "rule_or_equation",
+    "inputs",
+    "depends_on",
+    "produces",
+]
+
 TIER_NAME_BY_NUMBER = {
     1: "omission / cut-off",
     2: "proxy substitution",
@@ -59,25 +58,29 @@ TIER_NAME_BY_NUMBER = {
 
 
 def load_estimation_methods_knowledge_base(path: str | Path) -> list[dict]:
-    """Load every row of the `rules` worksheet, with `tier_name` added.
+    """Load every row of the `rules` sheet, with derived fields added.
 
-    Args:
-        path: Path to the estimation methods knowledge base workbook
-            (`src/skills/scaleup_decision_framework.xlsx`).
-
-    Returns:
-        One dict per method row, keyed by every column the `rules`
-        worksheet defines (`component`, `tier`, `method_id`,
-        `method_name`, `operation_scope`, `applies_when`,
-        `rule_or_equation`, `required_inputs`, `input_sourcing`,
-        `sequence_with`, `produces`, `bias_direction`,
-        `assumptions_to_log`, `escalate_if`, `confidence`, `reference`,
-        `reference_note`, `url`, `limitations`, `scope_gap_flag`), plus
-        a derived `tier_name` (see module docstring). Raises
-        `FileNotFoundError` if `path` does not exist (propagated from
-        `load_excel_table`).
+    Raises `FileNotFoundError` if `path` does not exist, and
+    `ValueError` if the sheet's columns differ from `RULE_COLUMNS` or a
+    rule's `inputs` cell is malformed.
     """
     rows = load_excel_table(path, sheet_name=RULES_SHEET_NAME)
+    if rows and list(rows[0].keys()) != RULE_COLUMNS:
+        raise ValueError(
+            f"Unexpected columns in the '{RULES_SHEET_NAME}' sheet of {path}.\n"
+            f"Expected: {RULE_COLUMNS}\nFound: {list(rows[0].keys())}"
+        )
     for row in rows:
+        try:
+            row["input_records"] = parse_inputs(row.get("inputs"))
+        except ValueError as exc:
+            raise ValueError(f"{row.get('method_id')}: {exc}") from exc
+        row["required_inputs"] = "; ".join(record["name"] for record in row["input_records"])
         row["tier_name"] = TIER_NAME_BY_NUMBER.get(row.get("tier"))
     return rows
+
+
+def load_framework_documentation(path: str | Path) -> dict[str, dict]:
+    """The `documentation` sheet, keyed by method_id (people-facing only)."""
+    rows = load_excel_table(path, sheet_name=DOCUMENTATION_SHEET_NAME)
+    return {row["method_id"]: row for row in rows if row.get("method_id")}

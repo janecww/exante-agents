@@ -1,13 +1,16 @@
-"""Pydantic models for the Parameter Requirement Agent's output.
+"""Pydantic models for the Parameter Identification (Parameter Requirement) Agent.
 
-Once a human has selected a final method for an inventory (see
-`ReviewedRecommendationEntry.human_selected_method` in
-`src.models.reviewed_recommendation`), the Parameter Requirement Agent
-(`src.agents.parameter_requirement`) determines what information that
-specific method needs and whether the case's existing evidence already
-supplies it. It does not select or change the method -- the human's
-selection is authoritative -- and it does not perform the eventual
-scale-up calculation; that is a later milestone.
+Once the practitioner has selected a method for a flow, the agent reports,
+for every input of that method, its status under the shared definition of
+"available" (`src.skills.availability`) -- the same definition the
+Estimation Recommendation step used -- with value, unit, source and, for
+a derived value, the derivation. It does not select or change the method
+and does not perform the scale-up calculation.
+
+The language model fills `required_parameters` only. Everything else is
+computed by code (`src.agents.parameter_requirement`): the framework tag of
+each input, `missing_parameters`, `target_inputs`, `calculation_readiness`
+and `consistency_flags` (checks C2 and C5).
 """
 
 from pydantic import BaseModel, Field
@@ -17,50 +20,47 @@ MISSING_PARAMETERS = "MISSING_PARAMETERS"
 
 AVAILABLE = "available"
 MISSING = "missing"
+AMBIGUOUS = "ambiguous"
+
+# Fields of ParameterReview that code computes; removed from the JSON
+# skeleton shown to the model.
+COMPUTED_FIELDS = ("missing_parameters", "target_inputs", "calculation_readiness", "consistency_flags")
 
 
 class RequiredParameter(BaseModel):
-    """One parameter the selected method needs, and whether it is available.
+    """One input of the selected method and its status.
 
-    `value`/`unit`/`source` are populated only when `status` is
-    `AVAILABLE` -- copied from real case evidence, never invented or
-    estimated. When `status` is `MISSING`, they are `None`: this agent
-    never fabricates a placeholder value for something it could not
-    find. `source` names where an available value came from (e.g.
-    "Laboratory Process Inventory: P01 water input", or "Lab-Derived
-    Parameters: m_mix"), so it stays traceable to real case evidence
-    rather than an unexplained number.
-
-    `note` is populated only when `status` is `MISSING` AND a
-    semantically-related value exists in the case's evidence but could
-    not be used as-is -- most commonly a unit mismatch this agent is not
-    authorized to convert (e.g. a water quantity reported in litres when
-    the method needs kg, with no density value available to convert
-    it). It names what was found and why it couldn't be used, so a
-    reviewer knows a conversion is needed rather than assuming the data
-    is entirely absent. `None` when nothing related was found at all.
+    `status` is "available", "missing" or "ambiguous". `value`, `unit` and
+    `source` are given only for an available input, copied from the case
+    evidence (or the framework default / a stated physical constant);
+    `derivation` records the calculation when the value was derived by an
+    allowed derivation; `note` names the candidate values of an ambiguous
+    input, or a related value that could not be used. `tag` is always
+    overwritten from the framework.
     """
 
     parameter: str
-    status: str = AVAILABLE
+    tag: str | None = None
+    status: str = MISSING
     value: str | float | None = None
     unit: str | None = None
     source: str | None = None
+    derivation: str | None = None
     note: str | None = None
 
 
 class ParameterReview(BaseModel):
-    """The full parameter-readiness review for one inventory's selected method.
+    """The parameter review for one flow's selected method.
 
-    `missing_parameters` and `calculation_readiness` are always
-    deterministically recomputed from `required_parameters` by
-    `src.agents.parameter_requirement._normalize_calculation_readiness`
-    after the LLM responds -- never trusted verbatim from the LLM's own
-    summary of its own list, mirroring how `tier_name` is always
-    re-derived from the knowledge base rather than trusted from an
-    LLM's copy (see `src.agents.estimation_recommendation`).
+    `calculation_readiness` is READY when every input tagged LAB,
+    CONSTANT, DEFAULT or LITERATURE is available; the TARGET inputs listed
+    in `target_inputs` are then still to be supplied by the practitioner
+    for the scale-up calculation. `missing_parameters` lists the non-TARGET
+    inputs that are missing or ambiguous.
     """
 
     required_parameters: list[RequiredParameter] = Field(default_factory=list)
     missing_parameters: list[str] = Field(default_factory=list)
+    target_inputs: list[str] = Field(default_factory=list)
     calculation_readiness: str = MISSING_PARAMETERS
+    consistency_flags: list[str] = Field(default_factory=list)

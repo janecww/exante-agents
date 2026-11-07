@@ -66,12 +66,15 @@ HEADERS = [
     "Selected Method",
     "Tier",
     "Parameter",
+    "Tag",
     "Status",
     "Value",
     "Unit",
     "Source",
     "Source Type",
+    "Derivation",
     "Note",
+    "Consistency Check",
 ]
 
 HEADER_FONT = Font(bold=True, color="FFFFFF")
@@ -147,22 +150,30 @@ def _rows_for_entry(entry: ReviewedRecommendationEntry) -> list[list]:
     )
 
     if not required_parameters:
-        return [
-            _method_row_prefix(entry, method) + [None, None, None, None, None, None, None]
-        ]
+        return [_method_row_prefix(entry, method) + [None] * 10]
+
+    flags = entry.parameter_review.consistency_flags if entry.parameter_review is not None else []
+    names = [item.parameter for item in required_parameters]
+    # A flag goes on the row of the input it names; a flag naming no input
+    # goes on the flow's first row.
+    general = [flag for flag in flags if not any(f"{name}" in flag for name in names)]
 
     rows = []
-    for required_parameter in required_parameters:
+    for index, required_parameter in enumerate(required_parameters):
+        own = [flag for flag in flags if required_parameter.parameter in flag]
         rows.append(
             _method_row_prefix(entry, method)
             + [
                 required_parameter.parameter,
+                required_parameter.tag,
                 required_parameter.status,
                 required_parameter.value,
                 required_parameter.unit,
                 required_parameter.source,
                 _source_type(required_parameter.source),
+                required_parameter.derivation,
                 required_parameter.note,
+                "\n".join(own + (general if index == 0 else [])) or None,
             ]
         )
     return rows

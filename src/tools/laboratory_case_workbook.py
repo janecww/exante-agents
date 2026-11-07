@@ -168,7 +168,7 @@ def _process_row(process: Process, record_type: str, flow=None) -> list:
         flow.name if flow else "",
         flow.value if (flow and flow.value is not None) else "",
         flow.unit if flow else "",
-        REPORTED,
+        (flow.provenance or REPORTED) if flow else REPORTED,
     ]
 
 
@@ -321,6 +321,7 @@ def _read_process_inventory(workbook) -> list[Process]:
                 name=row[column_index["Inventory Name"]] or None,
                 value=value if value != "" else None,
                 unit=row[column_index["Unit"]] or None,
+                provenance=row[column_index["Provenance"]] or None,
             )
             if record_type == "Input":
                 processes[process_id].inputs.append(flow)

@@ -1,50 +1,87 @@
-"""Pydantic models for the Estimation Recommendation Agent's output.
+"""Pydantic models for the Estimation Recommendation step.
 
-`RecommendationPackage` is produced by the Estimation Recommendation
-Agent from `ConfirmedInventoryPackage` and the authoritative estimation
-methods knowledge base (`src/skills/scaleup_decision_framework.xlsx`).
-The human remains responsible for selecting the final estimation
-method -- this package is a recommendation only; the "Human Selected
-Method ID" column of the exported workbook (Worksheet 2) is where that
-final decision is made. These two classes are never extended with the
-human's decision: they are walked directly by
-`src.prompts.schema_skeleton.build_json_skeleton` to build the JSON
-structure shown to the LLM, so any new field here would be sent to the
-LLM as something to populate. The human-reviewed result lives in a
-separate model, `src.models.reviewed_recommendation`, imported from the
-workbook by `src.tools.import_estimation_recommendations` -- mirroring
-how `ConfirmedInventoryPackage` is kept separate from
-`InventoryClassificationPackage`.
+Two layers, so that a model never writes a decision the code makes:
+
+- `FlowAssessment` (with `CandidateAssessment` and `InputAssessment`) is
+  what the language model returns for ONE flow: for every candidate
+  rule of the flow's category, whether the rule's operations and
+  conditions apply, and the status of every input under the shared
+  definition of "available" (`src.skills.availability`). It is walked by
+  `src.prompts.schema_skeleton.build_json_skeleton` to show the model the
+  JSON to return.
+- `RecommendationEntry` / `RecommendationPackage` are built by code
+  (`src.agents.estimation_recommendation.rank_candidates`) from those
+  assessments: the recommended method (highest-tier available rule), the
+  alternative (a higher-tier rule that would become available with more
+  inputs) and the rationale. They are never shown to the model as
+  something to fill in.
+
+The practitioner's decision lives in a separate model,
+`src.models.reviewed_recommendation`.
 """
 
 from pydantic import BaseModel, Field
 
 
-class EstimationMethodReference(BaseModel):
-    """A reference to one row of the estimation methods knowledge base,
-    identified by `method_id` for traceability. `method_name` and
-    `tier_name` are normalized from the knowledge base after LLM
-    validation, so neither can ever diverge from the authoritative
-    values for that `method_id` -- `tier_name` in particular is always
-    propagated from the matching candidate row, never left to the LLM
-    to infer.
+class InputAssessment(BaseModel):
+    """One input of one candidate rule, assessed against the case evidence.
+
+    `tag` is always overwritten from the framework after validation (the
+    model's copy is never trusted). `status` is one of "available",
+    "missing", "ambiguous". `derivation` records the calculation for a
+    derived value; `note` names candidate values for an ambiguous input or
+    a related value that could not be used.
     """
+
+    name: str
+    tag: str | None = None
+    status: str = "missing"
+    value: str | float | None = None
+    unit: str | None = None
+    source: str | None = None
+    derivation: str | None = None
+    note: str | None = None
+
+
+class CandidateAssessment(BaseModel):
+    """One candidate rule, assessed for one flow."""
+
+    method_id: str
+    operation_match: bool = False
+    operation_note: str | None = None
+    conditions_met: bool | None = None
+    conditions_note: str | None = None
+    inputs: list[InputAssessment] = Field(default_factory=list)
+
+
+class FlowAssessment(BaseModel):
+    """The language model's answer for one flow: every candidate assessed."""
+
+    candidates: list[CandidateAssessment] = Field(default_factory=list)
+
+
+class EstimationMethodReference(BaseModel):
+    """A reference to one rule of the framework. `method_name`, `tier` and
+    `tier_name` always come from the framework, never from a model."""
 
     method_id: str | None = None
     method_name: str | None = None
+    tier: int | None = None
     tier_name: str | None = None
 
 
 class RecommendationEntry(BaseModel):
-    """The recommendation for one confirmed foreground inventory.
+    """The recommendation for one confirmed flow, computed by code.
 
-    `recommended_method` is the most representative estimation method
-    that can currently be applied using available information; `None`
-    only if no candidate method in the knowledge base is applicable.
-    `more_representative_method` is a higher-fidelity method that
-    exists in the knowledge base but cannot yet be applied; `None` if
-    none exists, in which case `additional_information_required` is
-    the literal string "None".
+    `recommended_method`: the highest-tier available rule (`None` if no
+    rule is available). `more_representative_method`: a higher-tier rule
+    that would become available if the missing inputs listed in
+    `additional_information_required` were supplied (`None` if there is
+    none; the field is then the literal "None").
+    `other_higher_tier_methods`: the remaining higher-tier rules, each with
+    what it is missing. `candidate_assessments`: the model's per-candidate
+    assessment the ranking was computed from, with tags filled in from the
+    framework. `checks`: findings of the deterministic checks.
     """
 
     process_id: str | None = None
@@ -55,6 +92,9 @@ class RecommendationEntry(BaseModel):
     recommendation_rationale: str | None = None
     more_representative_method: EstimationMethodReference | None = None
     additional_information_required: str | None = None
+    other_higher_tier_methods: str | None = None
+    candidate_assessments: list[CandidateAssessment] = Field(default_factory=list)
+    checks: list[str] = Field(default_factory=list)
 
 
 class RecommendationPackage(BaseModel):

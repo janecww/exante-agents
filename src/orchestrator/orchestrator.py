@@ -322,6 +322,7 @@ def _run_parameter_requirement_review_stage(
         lab_derived_parameters,
         state["reviewed_recommendation"],
         agent,
+        recommendation_package=state.get("recommendation_package"),
     )
     append_log(case_directory, "Parameter requirement review completed")
 

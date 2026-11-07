@@ -36,13 +36,23 @@ import json
 from pathlib import Path
 from typing import Callable
 
-from src.models.parameter_review import AVAILABLE, MISSING_PARAMETERS, READY, ParameterReview
+from src.models.parameter_review import (
+    AVAILABLE,
+    MISSING_PARAMETERS,
+    READY,
+    ParameterReview,
+    RequiredParameter,
+)
+from src.models.recommendation import InputAssessment, RecommendationPackage
 from src.models.reviewed_recommendation import (
+    HumanSelectedMethod,
     ReviewedRecommendationEntry,
     ReviewedRecommendationPackage,
 )
 from src.models.technology import Technology
 from src.prompts.parameter_requirement_prompt import build_parameter_requirement_prompt
+from src.skills.availability import TARGET, decides_availability, parse_inputs
+from src.tools.method_ranking import normalise_inputs
 from src.tools.output_writer import append_log, save_parsed, save_prompt, save_response
 
 
@@ -55,25 +65,65 @@ def _response_appears_truncated(response: str) -> bool:
     return not stripped.endswith(("}", "]"))
 
 
-def _normalize_calculation_readiness(review: ParameterReview) -> ParameterReview:
-    """Deterministically recompute missing_parameters/calculation_readiness.
+def _normalize_review(review: ParameterReview, method: HumanSelectedMethod) -> ParameterReview:
+    """Apply the framework to the model's answer, then compute the summary.
 
-    Never trusted verbatim from the LLM's own summary of its own list --
-    mirrors how `method_name`/`tier_name` are always re-derived from the
-    knowledge base rather than trusted from an LLM's copy (see
-    `src.agents.estimation_recommendation`). Any parameter whose status
-    is not exactly `AVAILABLE` counts as missing, so an LLM writing a
-    third, non-compliant status value can never accidentally read as
-    ready.
+    The inputs are normalised exactly as in the recommendation ranking
+    (`src.tools.method_ranking.normalise_inputs`): one entry per framework
+    input in framework order, the framework's tag, DEFAULT values filled
+    in, and an "available" input without a value treated as missing (C5).
+    Findings go to `consistency_flags`. `missing_parameters` (non-TARGET
+    inputs not available), `target_inputs` and `calculation_readiness` are
+    computed here, never taken from the model.
     """
-    missing = [
-        parameter.parameter
-        for parameter in review.required_parameters
-        if parameter.status != AVAILABLE
+    flags: list[str] = []
+    items = [
+        InputAssessment(
+            name=item.parameter, tag=item.tag, status=item.status, value=item.value, unit=item.unit,
+            source=item.source, derivation=item.derivation, note=item.note,
+        )
+        for item in review.required_parameters
     ]
-    review.missing_parameters = missing
-    review.calculation_readiness = MISSING_PARAMETERS if missing else READY
+    normalised = normalise_inputs(method.method_id, parse_inputs(method.inputs), items, flags)
+    review.required_parameters = [
+        RequiredParameter(
+            parameter=item.name, tag=item.tag, status=item.status, value=item.value, unit=item.unit,
+            source=item.source, derivation=item.derivation, note=item.note,
+        )
+        for item in normalised
+    ]
+    review.missing_parameters = [
+        item.parameter for item in review.required_parameters
+        if decides_availability(item.tag) and item.status != AVAILABLE
+    ]
+    review.target_inputs = [item.parameter for item in review.required_parameters if item.tag == TARGET]
+    review.calculation_readiness = MISSING_PARAMETERS if review.missing_parameters else READY
+    review.consistency_flags = flags
     return review
+
+
+def compare_with_recommendation(
+    review: ParameterReview, entry: ReviewedRecommendationEntry, recommendation_package: RecommendationPackage | None
+) -> list[str]:
+    """Check C2: every input of the selected method must have the same status
+    here as in the Estimation Recommendation step's assessment."""
+    if recommendation_package is None or entry.human_selected_method is None:
+        return []
+    method_id = entry.human_selected_method.method_id
+    key = ((entry.process_id or "").strip().lower(), (entry.inventory_name or "").strip().lower())
+    for recommendation in recommendation_package.recommendations:
+        if ((recommendation.process_id or "").strip().lower(), (recommendation.inventory_name or "").strip().lower()) != key:
+            continue
+        for candidate in recommendation.candidate_assessments:
+            if candidate.method_id != method_id:
+                continue
+            before = {item.name: item.status for item in candidate.inputs}
+            return [
+                f"C2: {item.parameter} is {item.status!r} here but was {before[item.parameter]!r} in the recommendation step"
+                for item in review.required_parameters
+                if item.parameter in before and before[item.parameter] != item.status
+            ]
+    return [f"C2: no recommendation-step assessment found for {method_id}; not compared"]
 
 
 def _artifact_name(entry: ReviewedRecommendationEntry) -> str:
@@ -214,7 +264,7 @@ class ParameterRequirementAgent:
         validated_review = ParameterReview.model_validate(parsed_response)
         append_log(self.case_directory, "Response validated")
 
-        validated_review = _normalize_calculation_readiness(validated_review)
+        validated_review = _normalize_review(validated_review, entry.human_selected_method)
         append_log(
             self.case_directory,
             f"Calculation readiness: {validated_review.calculation_readiness}",
@@ -235,6 +285,7 @@ def review_parameter_requirements(
     lab_derived_parameters: list[dict],
     package: ReviewedRecommendationPackage,
     agent: ParameterRequirementAgent,
+    recommendation_package: RecommendationPackage | None = None,
 ) -> ReviewedRecommendationPackage:
     """Run the Parameter Requirement Agent for every selected inventory.
 
@@ -254,5 +305,10 @@ def review_parameter_requirements(
         if entry.human_selected_method is None:
             entry.parameter_review = None
             continue
-        entry.parameter_review = agent(technology, lab_derived_parameters, entry)
+        review = agent(technology, lab_derived_parameters, entry)
+        review.consistency_flags += compare_with_recommendation(review, entry, recommendation_package)
+        save_parsed(agent.case_directory, f"{_artifact_name(entry)}.yaml", review.model_dump())
+        for flag in review.consistency_flags:
+            append_log(agent.case_directory, f"  {entry.process_id} / {entry.inventory_name}: {flag}")
+        entry.parameter_review = review
     return package
