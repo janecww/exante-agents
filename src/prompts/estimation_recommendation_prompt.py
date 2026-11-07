@@ -203,7 +203,7 @@ def build_flow_assessment_prompt(
         "1. operation_match: for a rule with scope \"generic\", true. For a rule with scope \"named\", true if the "
         "flow's process step involves one of the rule's `operations`, judged from everything the evidence says "
         "about that step (FLOW: process_name, process_type, process_note; and the LAB-DERIVED PARAMETERS of that "
-        "stage, e.g. a reaction time \"under stirring\" means the step involves stirring). A step can involve "
+        "stage, whose descriptions may name an operation carried out during the step). A step can involve "
         "several operations. Equivalent wording counts (e.g. \"stirring\" for \"agitation\"). Otherwise false. "
         "Give a short reason in operation_note.\n"
         "2. conditions_met: true if the evidence shows the rule's `conditions` hold for this flow; false only if "

@@ -70,7 +70,7 @@ for the same process step, under this name or any clearly equivalent name, or wh
 ALLOWED DERIVATION. A value with any other provenance (e.g. "Assumed", or none) is not LAB evidence. The TECHNOLOGY \
 OVERVIEW gives context (product, functional unit, target scale), not LAB values.
 - [CONSTANT]: a standard physical property of a named substance (heat capacity, density, enthalpy of vaporisation, ...). \
-Always AVAILABLE: state the value you use and the standard reference it comes from.
+Always AVAILABLE: give the value and unit, and in `source` the substance and the standard reference.
 - [DEFAULT=value]: a value fixed by the rule itself. Always AVAILABLE: use the stated value.
 - [LITERATURE]: an external benchmark (industrial yield, specific energy, membrane flux, equipment design value, ...). \
 AVAILABLE only if the value and its citation are present in the case evidence. Never look up, recall or cite \
@@ -84,12 +84,13 @@ ALLOWED DERIVATIONS (closed list; nothing else counts):
 3. average power = energy / time, and the reverse;
 4. the sum of values reported for the same process step;
 5. a fraction or share of reported values (e.g. a mass fraction, a share of total electricity).
-Whenever you derive a value, write the calculation and the source of every operand in `derivation`, e.g. \
-"3.61 kWh (Process Inventory: P04 electricity) / 0.333 h (Lab-Derived Parameters: Ultrasonication operating_time_h) \
-= 10.8 kW".
+Whenever you derive a value, write the calculation in `derivation` as an equation: every operand with its unit and, \
+in brackets, the sheet and row it comes from, then "=" and the result with its unit. Generic example (not from this \
+case): "12.0 kWh (Process Inventory: P0X electricity) / 2.0 h (Lab-Derived Parameters: <stage> t) = 6.0 kW".
 
-AMBIGUOUS EVIDENCE: if several candidate values exist and the evidence does not say which one applies (e.g. six \
-different batch volumes for one step), the input is {AMBIGUOUS!r}: do not pick one; name the candidate values in `note`.
+AMBIGUOUS EVIDENCE: if several candidate values could be the input and the evidence does not say which one applies \
+(e.g. the same parameter reported more than once for a step with different values), the input is {AMBIGUOUS!r}: do \
+not pick one; name the candidate values in `note`.
 
 INPUT STATUS: every input gets exactly one status: {AVAILABLE!r}, {MISSING!r} or {AMBIGUOUS!r}. For {AVAILABLE!r}, give \
 value, unit and source (the sheet and row it came from, e.g. "Lab-Derived Parameters: Hydrolysis m_mix"); never invent, \
