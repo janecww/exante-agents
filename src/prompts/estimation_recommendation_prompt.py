@@ -18,9 +18,10 @@ Done in code before the prompt is built:
   enforced again by the ranking.
 
 Only the agent-facing `rules` columns are shown; the `documentation` sheet
-is never part of a prompt. The `source_priority` skill is not used here:
-it ranks literature and the model's own knowledge as fallback evidence,
-which the definition of "available" excludes.
+is never part of a prompt. The agents receive no other evidence ranking:
+the definition of "available" alone decides what counts as evidence (the
+former `source_priority` skill, which ranked literature and the model's own
+knowledge as fallback evidence, was removed for contradicting it).
 """
 
 import json

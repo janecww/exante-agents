@@ -10,10 +10,7 @@ from pathlib import Path
 
 from src.tools.yaml_loader import load_yaml
 
-SKILL_FILES = (
-    "component_definition",
-    "source_priority",
-)
+SKILL_FILES = ("component_definition",)
 
 
 def load_skills(skill_directory: Path) -> dict:
