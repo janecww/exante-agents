@@ -28,8 +28,8 @@ Laboratory Case Workbook (practitioner's input)
 [Agent] Estimation Recommendation ──► Worksheet 2 "Estimation Recommendations"
       │
       ▼
-◆ Review checkpoint 2: practitioner selects, per flow, the recommended
-  method, the more representative method, or neither
+◆ Review checkpoint 2: practitioner selects, per flow, any rule shown
+  (recommended, more representative, or another listed rule), or none
       │
       ▼
 [Agent] Parameter Identification ──► Worksheet 3 "Parameter Review"
@@ -38,7 +38,7 @@ Laboratory Case Workbook (practitioner's input)
      END  (parameter list per flow; no scale-up calculation)
 ```
 
-The workflow cannot yet go back to an earlier checkpoint. If the practitioner finds a classification error at checkpoint 2, they must restart from step 1.
+The practitioner can return the current run to checkpoint 1 or 2 with `python main.py back 1|2` (see [Running a case](#running-a-case)); for example, a classification error found at checkpoint 2 is corrected on Worksheet 1 without restarting the run.
 
 ---
 
@@ -162,7 +162,7 @@ The practitioner decisions made in each run are stored in that case's `outputs/p
 
 ### Setup
 
-Python 3.12. Package versions used for the paper runs:
+Python 3.12. Package versions used for the paper runs (pinned in `requirements.txt`, which also pins `pytest==9.1.1`):
 
 ```text
 openai==2.47.0  langgraph==1.2.9  langgraph-checkpoint-sqlite==3.1.1
@@ -213,10 +213,10 @@ This uses LangGraph's checkpoint history: results computed before the checkpoint
 ### Tests
 
 ```bash
-python -m pytest -q --ignore=tests/test_estimation_recommendation_diagnostics.py --ignore=tests/test_estimation_recommendation_framework_coverage.py
+python -m pytest -q
 ```
 
-These tests replace the language model with canned responses (366 pass). The two ignored files call the real model and are diagnostics, not regression tests; they predate framework v2 and have not been updated.
+These tests replace the language model with canned responses (370 pass). The two files `test_estimation_recommendation_diagnostics.py` and `test_estimation_recommendation_framework_coverage.py` call the real model and are skipped unless `PLCA_LIVE_MODEL_TESTS=1` is set (with `OPENROUTER_API_KEY`); they are diagnostics, not regression tests, predate framework v2 and have not been updated.
 
 ---
 
@@ -253,7 +253,7 @@ src/
 tests/
 cases/
 docs/
-main.py               entry point (start / resume)
+main.py               entry point (start / resume / back 1|2)
 run_scale_up_demo.py  stand-alone scale-up calculation prototype, not part of the workflow
 ```
 
@@ -262,7 +262,7 @@ run_scale_up_demo.py  stand-alone scale-up calculation prototype, not part of th
 ## Limitations
 
 - **One run per scenario.** Run-to-run variability has not been measured systematically. Across the reported runs, some flows with identical evidence got different results (see `docs/revision_R2_code_check.md`).
-- **No backward routing.** The practitioner cannot send the workflow back to an earlier checkpoint.
+- **Returning to a checkpoint is limited to the current run.** `python main.py back 1|2` reopens checkpoint 1 or 2 of the current run; it does not rewrite the worksheets, and `start` begins a new run.
 - **Evidence matching is done by the model.** Both agents follow one definition of "available" and the code checks the two results against each other (C2), but whether a value in the evidence is the input a rule needs remains the model's judgement.
 - **No scale-up calculation.** The workflow ends with the parameter list. `run_scale_up_demo.py` is an unintegrated prototype.
 - **One process tested.** Only the starch nanocrystal (SNC) process and two variants of it.
@@ -272,4 +272,4 @@ run_scale_up_demo.py  stand-alone scale-up calculation prototype, not part of th
 
 ## Licence and citation
 
-No licence has been chosen yet. Until one is added, all rights are reserved by the authors. A citation entry will be added when the paper is published.
+The code is released under the MIT License (see [LICENSE](LICENSE)). A citation entry will be added when the paper is published.

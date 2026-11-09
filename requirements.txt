@@ -1,8 +1,11 @@
-openai
-python-dotenv
-PyYAML
-pydantic
-langgraph
-langgraph-checkpoint-sqlite
-openpyxl
+# Pinned to the versions used for the R2 runs (Python 3.12.10).
+openai==2.47.0
+python-dotenv==1.2.2
+PyYAML==6.0.3
+pydantic==2.13.4
+langgraph==1.2.9
+langgraph-checkpoint-sqlite==3.1.1
+openpyxl==3.1.5
 
+# Tests
+pytest==9.1.1
