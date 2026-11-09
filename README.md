@@ -82,7 +82,7 @@ An invalid practitioner entry (a Final Component outside the five categories, or
 | same workbook, sheet `how_to_use` | Meaning of every sheet and column, the input tags and the definition of "available" | - |
 | [`src/skills/component_definition.yaml`](src/skills/component_definition.yaml) | Definitions of the five categories | Inventory Classification |
 
-How the framework was restructured from its first version (tags, conditions, one output per category) is recorded per rule in [docs/framework_v2_changes.md](docs/framework_v2_changes.md).
+How the framework was restructured from its first version (tags, conditions, one output per category) is recorded per rule in [docs/framework_v2_changes.md](docs/framework_v2_changes.md). The v2.1 revision (9 Nov) and a clause-by-clause mapping from the original framework (v4) are in [docs/framework_v4_mapping.md](docs/framework_v4_mapping.md).
 
 **Categories:** reactant, solvent, catalyst, energy and heat ([`component_definition.yaml`](src/skills/component_definition.yaml)). *Energy* is the electricity used to run process equipment (stirrers, pumps, centrifuges, homogenisers, ultrasonic devices). *Heat* is thermal energy for heating or cooling, whatever its source (steam, hot oil, chilled water, electric heating); it is the special case of energy kept as its own category because it is estimated from mass, heat capacity, temperature change and heat losses rather than from equipment power and time. A measured electricity flow that also covers heating stays *energy*, and the practitioner decides at checkpoint 1 whether a separate heat flow would count the same heating twice. Every rule of a category produces the same quantity: kg reactant, kg solvent (fresh, after any recovery), kg catalyst, kWh electricity or kWh heat, per functional unit.
 
@@ -105,7 +105,7 @@ How the framework was restructured from its first version (tags, conditions, one
 | `method_name` | Linear scaling of measured lab electricity |
 | `scope` / `operations` | generic / - |
 | `conditions` | - |
-| `rule_or_equation` | E_ind = E_lab x scale factor |
+| `rule_or_equation` | E_ind = E_lab x scale factor. Symbols: E_lab = lab_measured_electricity; scale factor = scale_factor. |
 | `inputs` | `lab_measured_electricity [LAB]; scale_factor [TARGET]` |
 | `produces` | kWh electricity per FU |
 
@@ -216,7 +216,7 @@ This uses LangGraph's checkpoint history: results computed before the checkpoint
 python -m pytest -q
 ```
 
-These tests replace the language model with canned responses (370 pass). The two files `test_estimation_recommendation_diagnostics.py` and `test_estimation_recommendation_framework_coverage.py` call the real model and are skipped unless `PLCA_LIVE_MODEL_TESTS=1` is set (with `OPENROUTER_API_KEY`); they are diagnostics, not regression tests, predate framework v2 and have not been updated.
+These tests replace the language model with canned responses (375 pass). The two files `test_estimation_recommendation_diagnostics.py` and `test_estimation_recommendation_framework_coverage.py` call the real model and are skipped unless `PLCA_LIVE_MODEL_TESTS=1` is set (with `OPENROUTER_API_KEY`); they are diagnostics, not regression tests, predate framework v2 and have not been updated.
 
 ---
 
