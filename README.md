@@ -154,9 +154,12 @@ Results are **not guaranteed to be bit-reproducible**: providers may not be full
 |---|---|---|
 | Baseline | [`cases/starch_nanocrystals`](cases/starch_nanocrystals) | — |
 | Information removal | [`cases/01_MKS_completeness_DOWN_minimal`](cases/01_MKS_completeness_DOWN_minimal) | Starch (hydrolysis) and water (final homogenising) quantities removed; hydrolysis reaction time and mixture mass removed |
-| Information enrichment | [`cases/02_MKS_completeness_UP_ultrasonication`](cases/02_MKS_completeness_UP_ultrasonication) | Ultrasonication rated power, operating time, load factor and throughput added (four rows); nothing else changed |
+| Information enrichment | [`cases/02_MKS_completeness_UP_ultrasonication`](cases/02_MKS_completeness_UP_ultrasonication) | Ultrasonication rated power, operating time, load factor and throughput added (four rows; operating time Calculated from the lab, the other three constructed from Arvidsson et al. 2014, Provenance Literature); nothing else changed |
+| Literature support | [`cases/03_MKS_completeness_UP_literature`](cases/03_MKS_completeness_UP_literature) | The 20 literature values the original study used for its industrial-scale estimate (Muller-Carneiro et al. 2023, SI Table C.1, citing Piccinno et al. 2016 and Arvidsson et al. 2014) added with Provenance Literature: reactor wall loss, agitator and homogeniser impellers, centrifugation specific energy, ultrasonication specific power. Laboratory values unchanged |
 
-Each scenario was run **once** (5 Nov 2026), with the same code, knowledge base, model and sampling settings: baseline `bfd9b18`, removal `21c63e3`, enrichment `fcb5f79`. The earlier 27 Aug 2026 runs, with the previous model, remain in commit `e8b46ba`; [docs/revision_R2_code_check.md §5](docs/revision_R2_code_check.md) compares the two.
+In each test case folder (01–03), `test_notes.xlsx` states the purpose of the scenario and the result expected per flow if the framework works.
+
+Each scenario was run **once** on framework v2.1 (`3d5338a`), with the same code, model and sampling settings: baseline and literature support `9f64ef7`, removal `89eecac`, enrichment `062186f`. The practitioner decisions follow the same rules in every run, with two exceptions in the enrichment run: P05 electricity was not suggested by the agent and was added at checkpoint 1, and P04 electricity selects the recommended ENER-T4 (the test target) instead of the reference study's method. The earlier 27 Aug 2026 runs, with the previous model, remain in commit `e8b46ba`; [docs/revision_R2_code_check.md §5](docs/revision_R2_code_check.md) compares them with the 5 Nov 2026 runs.
 
 The practitioner decisions made in each run are stored in that case's `outputs/parsed/lci_development_workbook.xlsx`: Worksheet 1 columns "Final Component" and "Include Inventory", and Worksheet 2 column "Human Selected Method ID".
 
