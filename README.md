@@ -6,7 +6,7 @@ This repository holds the code, prompts, knowledge base and case outputs for the
 
 **Scope.** The workflow ends with a list of the parameters each selected method needs. The scale-up calculations themselves are outside the current scope.
 
-For the full design, see [Architecture.md](Architecture.md).
+For the full design, including what is decided by code and what by the language model, the knowledge base, the validation checks and the agent outputs, see [Architecture.md](Architecture.md).
 
 ---
 
@@ -39,95 +39,6 @@ Laboratory Case Workbook (practitioner's input)
 ```
 
 The practitioner can return the current run to checkpoint 1 or 2 with `python main.py back 1|2` (see [Running a case](#running-a-case)); for example, a classification error found at checkpoint 2 is corrected on Worksheet 1 without restarting the run.
-
----
-
-## What is decided by code, and what by the language model
-
-Both agents that judge evidence (Estimation Recommendation and Parameter Identification) receive **one and the same definition of "available"** ([`src/skills/availability.py`](src/skills/availability.py), summarised under [Knowledge base](#knowledge-base)), inserted verbatim into both prompts.
-
-| Decided by deterministic code | Decided by the language model |
-|---|---|
-| Routing each flow to the rules of its category (the model never sees other categories' rules) | Classifying each laboratory flow into one of five categories, from the process description |
-| Whether Tier 3 linear extrapolation is possible from the laboratory quantity ([`linear_extrapolation.py`](src/tools/linear_extrapolation.py)) | Proposing additional flows that usually appear at industrial scale (e.g. steam) |
-| The tag of every input (LAB, CONSTANT, DEFAULT, LITERATURE, TARGET), taken from the framework; DEFAULT values filled in | Whether a named rule's operation matches the flow's process step, and whether its conditions hold (true / false / cannot tell; a rule whose conditions cannot be confirmed is never recommended, but can be offered as the alternative) |
-| **Ranking** ([`method_ranking.py`](src/tools/method_ranking.py)): the recommended method (highest-tier available rule), the alternative (higher-tier rule with the fewest missing inputs), the other higher-tier rules, the same- or lower-tier rules, and the rules ruled not applicable (with the agent's reason) | The status of every input (available / missing / ambiguous), with value, unit, source and, for a derived value, the derivation |
-| The rationale, written from the same input-by-input assessment, so it cannot contradict the ranking | For the selected method, the value and source of every input, and for each missing one where it could be obtained (Parameter Identification) |
-| Calculation readiness: every non-TARGET input available | |
-| Checks C1-C7 (below) | |
-| Every agent output matches a fixed JSON schema (Pydantic); every agent-proposed flow is flagged for practitioner review; every included flow's Final Component (checkpoint 1) is one of the five categories; the practitioner's selection (checkpoint 2) must be a method shown for that flow (recommended, alternative, or listed under other higher-tier, same- or lower-tier, or not applicable) | |
-
-**Checks.** A response that is not valid JSON or does not match the schema **stops** the workflow, with the raw response kept in `outputs/responses/`; nothing is repaired or retried. Smaller problems are handled conservatively and shown to the practitioner:
-
-| Check | What | Shown in |
-|---|---|---|
-| C1 | The alternative is a higher tier than the recommended method (holds by construction) | - |
-| C2 | Every input of the selected method has the same status in Parameter Identification as in the recommendation step | Worksheet 3, "Consistency Check" |
-| C3 | Tier 3: the model's status of the laboratory quantity agrees with the code's linear-extrapolation result (the code wins) | Worksheet 2, "Checks" |
-| C4 | Every rule and input was assessed, and none was invented (unassessed = not applicable / missing) | Worksheet 2, "Checks" |
-| C5 | An input marked available has a value and a source (otherwise treated as missing) | Worksheets 2 and 3 |
-| C6 | Evidence trace ([`evidence_trace.py`](src/tools/evidence_trace.py)): an available LAB value, or every number in its derivation, is found in the case workbook with Provenance Reported or Calculated (LITERATURE: anywhere in the evidence), allowing unit conversions and rounding; a parsed derivation must reproduce the value (otherwise treated as missing; an unparseable derivation is kept with a note) | Worksheets 2 and 3 |
-| C7 | A suggestion of where to find a missing input says where to look, never what the value is: a suggestion containing a number is removed | Worksheet 3 |
-
-An invalid practitioner entry (a Final Component outside the five categories, or a selection that is not a method shown for that flow) stops the workflow with a message naming the row, so it can be corrected and resumed.
-
----
-
-## Knowledge base
-
-| File | What it holds | Used by |
-|---|---|---|
-| [`src/skills/scaleup_decision_framework.xlsx`](src/skills/scaleup_decision_framework.xlsx), sheet `rules` | 37 scale-up rules, one row per method; the only sheet any agent sees | Estimation Recommendation, Parameter Identification |
-| same workbook, sheet `documentation` | Literature basis, confidence and limitations of each rule, for people; never sent to an agent | - |
-| same workbook, sheet `how_to_use` | Meaning of every sheet and column, the input tags and the definition of "available" | - |
-| [`src/skills/component_definition.yaml`](src/skills/component_definition.yaml) | Definitions of the five categories | Inventory Classification |
-
-**Categories:** reactant, solvent, catalyst, energy and heat ([`component_definition.yaml`](src/skills/component_definition.yaml)). *Energy* is the electricity used to run process equipment (stirrers, pumps, centrifuges, homogenisers, ultrasonic devices). *Heat* is thermal energy for heating or cooling, whatever its source (steam, hot oil, chilled water, electric heating); it is the special case of energy kept as its own category because it is estimated from mass, heat capacity, temperature change and heat losses rather than from equipment power and time. A measured electricity flow that also covers heating stays *energy*, and the practitioner decides at checkpoint 1 whether a separate heat flow would count the same heating twice. Every rule of a category produces the same quantity: kg reactant, kg solvent (fresh, after any recovery), kg catalyst, kWh electricity or kWh heat, per functional unit.
-
-**Tiers** (1 = least representative, 6 = most):
-
-| Tier | Name in the knowledge base | Example (electricity) |
-|---|---|---|
-| 1 | omission / cut-off | ENER-T1 omission of minor electricity |
-| 2 | proxy substitution | ENER-T2 literature specific energy consumption |
-| 3 | linear extrapolation | ENER-T3 linear scaling of measured lab electricity |
-| 4 | heuristic default factor | ENER-T4 rated power and duty time |
-| 5 | empirical scaling law | ENER-T5 power-law capacity scaling |
-| 6 | engineering equation | ENER-T6 agitation equation (Piccinno et al.) |
-
-**One rule, as stored (ENER-T3):**
-
-| Column | Value |
-|---|---|
-| `component` / `tier` / `method_id` | Energy / 3 / ENER-T3 |
-| `method_name` | Linear scaling of measured lab electricity |
-| `scope` / `operations` | generic / - |
-| `conditions` | - |
-| `rule_or_equation` | E_ind = E_lab x scale factor. Symbols: E_lab = lab_measured_electricity; scale factor = scale_factor. |
-| `inputs` | `lab_measured_electricity [LAB]; scale_factor [TARGET]` |
-| `produces` | kWh electricity per FU |
-
-**Input tags and the definition of "available":**
-
-| Tag | Available when |
-|---|---|
-| LAB | Stated in the case evidence with Provenance "Reported" or "Calculated", for the same process step, or derived from such values by an allowed derivation (unit conversion; mass to volume with a stated density or 1 kg/L for water; power = energy / time; sums; fractions) |
-| CONSTANT | Always: a standard physical property, stated with its reference |
-| DEFAULT | Always: the value fixed by the rule |
-| LITERATURE | Only if the value and its citation are in the case evidence; the agent never looks up literature |
-| TARGET | Never decides availability (industrial scale, supplied later by the practitioner) |
-
-Several candidate values without a way to choose make an input **ambiguous**, which counts as not available. A rule is available when its operation matches, its conditions hold, and every non-TARGET input is available.
-
----
-
-## Agent outputs
-
-Each agent writes its output to YAML files in `outputs/parsed/` and to a worksheet of `outputs/parsed/lci_development_workbook.xlsx`.
-
-**Worksheet 2, Estimation Recommendations** has one row per flow: the recommended method, the rationale, the alternative ("more representative") method with the inputs it is missing, the other higher-tier methods with what each is missing, the same- or lower-tier methods, the methods the agent ruled not applicable (with its reason), the checks, and the practitioner's selection. Every rule of the flow's category is therefore shown, and the practitioner may select any of them, or none; the choice is recorded as recommended / alternative / other higher tier / lower tier / not applicable, and a not-applicable selection is written to the workflow log with the agent's reason. The full input-by-input assessment of every candidate is in `recommendation.yaml`.
-
-**Worksheet 3, Parameter Review** has one row per input of the selected method: `Tag`, `Status` (available / missing / ambiguous), `Value`, `Unit`, `Source`, `Source Type`, `Derivation`, `Note`, `Where to Find` (for a missing or ambiguous input: the kind of source to consult, written by the agent) and `Consistency Check` (C2/C5/C6/C7).
 
 ---
 
