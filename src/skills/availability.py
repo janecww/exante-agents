@@ -2,8 +2,8 @@
 
 Both the Estimation Recommendation prompt and the Parameter
 Identification prompt insert `AVAILABILITY_DEFINITION` verbatim, so the
-two agents can never be given different rules for the same judgement
-(see docs/R2_alignment_plan.md, section 1). The same text is reproduced
+two agents can never be given different rules for the same judgement.
+The same text is reproduced
 for people in the `how_to_use` sheet of
 `src/skills/scaleup_decision_framework.xlsx`.
 

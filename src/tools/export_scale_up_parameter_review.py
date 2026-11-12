@@ -350,7 +350,7 @@ def export_scale_up_calculation_results(
     formula vs. a constant differs. `package` must be the same package
     `export_scale_up_parameter_review` was (or will be) called with, so
     the referenced row numbers line up with what that sheet actually
-    contains -- `run_scale_up_demo` guarantees this by construction.
+    contains.
 
     Returns the number of result rows written.
     """

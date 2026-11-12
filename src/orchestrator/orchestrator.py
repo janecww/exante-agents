@@ -38,9 +38,8 @@ Workflow:
     -> END
 
 Stage 1 ends at the Parameter Requirement Agent. The scale-up
-calculation prototype (`src.tools.scale_up_preparation`, and the
-standalone Milestone 2B demo under `src.tools.scale_up_*` /
-`run_scale_up_demo.py`) is deliberately not wired into this graph --
+calculation prototype (`src.tools.scale_up_*`) is deliberately not
+wired into this graph --
 it remains available as future, standalone Stage 2 work, but is never
 constructed or invoked by `run()`/`resume()`.
 

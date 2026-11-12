@@ -50,11 +50,9 @@ def build_graph(
         -> END
 
     Stage 1 ends at Parameter Requirement Review. The scale-up
-    calculation prototype (`src.tools.scale_up_preparation` and the
-    standalone Milestone 2B demo under `src.tools.scale_up_*`) is
-    deliberately not wired into this graph -- it is future Stage 2
-    work, kept available as standalone code (see `run_scale_up_demo.py`)
-    but not part of the active workflow.
+    calculation prototype (`src.tools.scale_up_*`) is deliberately not
+    wired into this graph -- it is future Stage 2 work, kept available
+    as standalone code but not part of the active workflow.
 
     Every stage is a fully constructed `GraphState -> GraphState`
     callable, registered directly as a LangGraph node. Human Review and
