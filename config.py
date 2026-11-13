@@ -5,9 +5,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Nemotron 3 Super (`nvidia/nemotron-3-super-120b-a12b:free`, used for
-# the 27 Aug 2026 runs) was withdrawn from OpenRouter's free tier in
-# Nov 2026; every scenario is re-run with this configuration instead.
 MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
 BASE_URL = "https://openrouter.ai/api/v1"
 
