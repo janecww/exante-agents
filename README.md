@@ -75,7 +75,7 @@ Each scenario was run **once** on framework v2.1, with the same code, model and 
 
 ### Setup
 
-Python 3.12. Package versions used for the paper runs (pinned in `requirements.txt`, which also pins `pytest==9.1.1`):
+Python 3.12. Package versions used for the paper runs (pinned in `requirements.txt`):
 
 ```text
 openai==2.47.0  langgraph==1.2.9  langgraph-checkpoint-sqlite==3.1.1
@@ -123,14 +123,6 @@ python main.py back 2   # Worksheet 2, method selection
 
 This uses LangGraph's checkpoint history: results computed before the checkpoint are restored, not recomputed; after `resume`, an agent calls the model only for a prompt that changed (identical prompts reuse their saved reply). Nothing is deleted, the return is logged, and `back` never reaches into an earlier run of the case. `start` instead begins a new run, which re-runs classification.
 
-### Tests
-
-```bash
-python -m pytest -q
-```
-
-These tests replace the language model with canned responses and need no API key. The two files `test_estimation_recommendation_diagnostics.py` and `test_estimation_recommendation_framework_coverage.py` call the real model and are skipped unless `PLCA_LIVE_MODEL_TESTS=1` is set (with `OPENROUTER_API_KEY`); they are diagnostics, not regression tests, predate framework v2 and have not been updated.
-
 ---
 
 ## Case folder layout
@@ -163,7 +155,6 @@ src/
     state/         shared LangGraph state
     tools/         deterministic loaders, exporters/importers, Tier 3 pre-computation
                    (also a stand-alone scale-up calculation prototype, not part of the workflow)
-tests/             offline tests (language model replaced by canned responses)
 cases/             one folder per scenario (see Case folder layout)
 main.py            entry point (start / resume / back 1|2)
 config.py          OpenRouter client, model and sampling settings
