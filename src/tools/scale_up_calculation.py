@@ -15,7 +15,7 @@ existing, already-tested calculation, never reimplemented here. Every
 other method returns `CALCULATION_NOT_IMPLEMENTED` rather than
 guessing at an equation this module has not been taught. Extending
 coverage to more tiers is future work, deliberately out of scope for
-this milestone (see Architecture.md).
+this milestone.
 """
 
 from src.models.parameter_review import MISSING_PARAMETERS, READY

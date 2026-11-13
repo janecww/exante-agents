@@ -320,7 +320,6 @@ def resolve_final_method(
     `entry.recommended_method` -- when no human selection has been made
     yet, so downstream code cannot mistake "not yet decided" for "no
     method needed". No existing downstream workflow stage currently
-    calls this (Stage 1 terminates after Worksheet 2 is exported -- see
-    Architecture.md); it is provided ready for a future stage to use.
+    calls this; it is provided ready for a future stage to use.
     """
     return entry.human_selected_method

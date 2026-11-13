@@ -3,7 +3,7 @@
 `apply_human_parameter_inputs` lets a human fill in the parameters
 Milestone 2A's `ScaleUpPreparation.missing_parameters` reported as
 genuinely absent -- for this standalone prototype only, since the real
-LangGraph workflow has no such step yet (see Architecture.md). Every
+LangGraph workflow has no such step yet. Every
 supplied value is recorded with `source = "Human-provided (demo)"` and
 `source_type = HUMAN_PROVIDED`; nothing here pretends a demo value came
 from the laboratory workbook, and nothing invents a value the human

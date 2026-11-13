@@ -10,3 +10,5 @@ venv/
 # Excel lock files (created while a workbook is open elsewhere)
 ~$*.xlsx
 
+# Generated when a case is run
+cases/*/outputs/

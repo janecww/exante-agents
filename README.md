@@ -2,11 +2,9 @@
 
 A human-in-the-loop, multi-agent framework that helps LCA practitioners prepare the foreground inventory of an **ex-ante (prospective) LCA** of an emerging bio-based product. For each laboratory inventory flow, it recommends a scale-up estimation method and lists the parameters still needed to apply it.
 
-This repository holds the code, prompts, knowledge base and case outputs for the paper *Ex-Ante LCA of Emerging Bio-Based Products: A Human-AI Collaborative Framework for Scale-Up Decision Support* (Procedia CIRP, manuscript PROCIR-D-26-00293).
+This repository holds the code, prompts, knowledge base and case input workbooks for the paper *Ex-Ante LCA of Emerging Bio-Based Products: A Human-AI Collaborative Framework for Scale-Up Decision Support* (Procedia CIRP, manuscript PROCIR-D-26-00293).
 
 **Scope.** The workflow ends with a list of the parameters each selected method needs. The scale-up calculations themselves are outside the current scope.
-
-For the full design, including what is decided by code and what by the language model, the knowledge base, the validation checks and the agent outputs, see [Architecture.md](Architecture.md).
 
 ---
 
@@ -55,7 +53,7 @@ The practitioner can return the current run to checkpoint 1 or 2 with `python ma
 
 The first runs (27 Aug 2026) used `nvidia/nemotron-3-super-120b-a12b:free` with provider-default sampling. That free model was withdrawn in Nov 2026, so all scenarios were re-run with the settings above (5 Nov 2026).
 
-Results are **not guaranteed to be bit-reproducible**: providers may not be fully deterministic even at temperature 0, may ignore the seed, and the free-tier endpoint may route requests to different providers. Every prompt and raw response from the reported runs is kept under `cases/*/outputs/prompts/` and `cases/*/outputs/responses/`.
+Results are **not guaranteed to be bit-reproducible**: providers may not be fully deterministic even at temperature 0, may ignore the seed, and the free-tier endpoint may route requests to different providers.
 
 ### Scenarios
 
@@ -68,11 +66,7 @@ All scenarios are built on the starch nanocrystal (SNC) process from mango kerne
 | Information enrichment | [`cases/02_MKS_completeness_UP_ultrasonication`](cases/02_MKS_completeness_UP_ultrasonication) | Ultrasonication rated power, operating time, load factor and throughput added (four rows; operating time Calculated from the lab, the other three constructed from Arvidsson et al. 2014, Provenance Literature); nothing else changed |
 | Literature support | [`cases/03_MKS_completeness_UP_literature`](cases/03_MKS_completeness_UP_literature) | The 20 literature values the original study used for its industrial-scale estimate (Müller-Carneiro et al. 2023, SI Table C.1, citing Piccinno et al. 2016 and Arvidsson et al. 2014) added with Provenance Literature: reactor wall loss, agitator and homogeniser impellers, centrifugation specific energy, ultrasonication specific power. Laboratory values unchanged |
 
-In each test case folder (01–03), `test_notes.xlsx` states the purpose of the scenario and the result expected per flow if the framework works.
-
 Each scenario was run **once** on framework v2.1, with the same code, model and sampling settings. The practitioner decisions follow the same rules in every run, with two exceptions in the enrichment run: P05 electricity was not suggested by the agent and was added at checkpoint 1, and P04 electricity selects the recommended ENER-T4 (the test target) instead of the reference study's method.
-
-The practitioner decisions made in each run are stored in that case's `outputs/parsed/lci_development_workbook.xlsx`: Worksheet 1 columns "Final Component" and "Include Inventory", and Worksheet 2 column "Human Selected Method ID".
 
 **References**
 
@@ -145,8 +139,7 @@ These tests replace the language model with canned responses and need no API key
 cases/<case>/
     laboratory_case_workbook.xlsx   # input: Technology Overview, Process Inventory, Lab-Derived Parameters
     references/                     # optional; for the practitioner's own use (not read by the code)
-    test_notes.xlsx                 # stress-test cases only: what was changed and what is expected
-    outputs/
+    outputs/                        # created when the case is run
         inputs/      # inputs as passed to each agent (YAML)
         prompts/     # exact prompt sent for every agent call
         responses/   # raw model reply for every agent call
@@ -175,7 +168,6 @@ cases/             one folder per scenario (see Case folder layout)
 main.py            entry point (start / resume / back 1|2)
 config.py          OpenRouter client, model and sampling settings
 requirements.txt   pinned package versions
-Architecture.md    full design description
 ```
 
 ---
