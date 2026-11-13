@@ -62,8 +62,6 @@ All scenarios are built on the starch nanocrystal (SNC) process from mango kerne
 | Information enrichment | [`cases/02_MKS_completeness_UP_ultrasonication`](cases/02_MKS_completeness_UP_ultrasonication) | Ultrasonication rated power, operating time, load factor and throughput added (four rows; operating time Calculated from the lab, the other three constructed from Arvidsson et al. 2014, Provenance Literature); nothing else changed |
 | Literature support | [`cases/03_MKS_completeness_UP_literature`](cases/03_MKS_completeness_UP_literature) | The 20 literature values the original study used for its industrial-scale estimate (Müller-Carneiro et al. 2023, SI Table C.1, citing Piccinno et al. 2016 and Arvidsson et al. 2014) added with Provenance Literature: reactor wall loss, agitator and homogeniser impellers, centrifugation specific energy, ultrasonication specific power. Laboratory values unchanged |
 
-Each scenario was run **once** on framework v2.1, with the same code, model and sampling settings. The practitioner decisions follow the same rules in every run, with two exceptions in the enrichment run: P05 electricity was not suggested by the agent and was added at checkpoint 1, and P04 electricity selects the recommended ENER-T4 (the test target) instead of the reference study's method.
-
 The outputs of the reported runs (prompts, raw model responses, parsed outputs and the practitioner's decisions in the LCI Development Workbook) are available from the authors on request.
 
 **References**
