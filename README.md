@@ -51,10 +51,6 @@ The practitioner can return the current run to checkpoint 1 or 2 with `python ma
 | Sampling | `temperature = 0`, `seed = 42`; other settings at provider defaults |
 | Call style | One single-turn prompt per call; the reply must be JSON. Estimation Recommendation and Parameter Identification make one call per flow |
 
-The first runs (27 Aug 2026) used `nvidia/nemotron-3-super-120b-a12b:free` with provider-default sampling. That free model was withdrawn in Nov 2026, so all scenarios were re-run with the settings above (5 Nov 2026).
-
-Results are **not guaranteed to be bit-reproducible**: providers may not be fully deterministic even at temperature 0, may ignore the seed, and the free-tier endpoint may route requests to different providers.
-
 ### Scenarios
 
 All scenarios are built on the starch nanocrystal (SNC) process from mango kernel of Müller-Carneiro et al. (2023). The laboratory equipment and operating conditions follow Oliveira et al. (2018).
@@ -67,6 +63,8 @@ All scenarios are built on the starch nanocrystal (SNC) process from mango kerne
 | Literature support | [`cases/03_MKS_completeness_UP_literature`](cases/03_MKS_completeness_UP_literature) | The 20 literature values the original study used for its industrial-scale estimate (Müller-Carneiro et al. 2023, SI Table C.1, citing Piccinno et al. 2016 and Arvidsson et al. 2014) added with Provenance Literature: reactor wall loss, agitator and homogeniser impellers, centrifugation specific energy, ultrasonication specific power. Laboratory values unchanged |
 
 Each scenario was run **once** on framework v2.1, with the same code, model and sampling settings. The practitioner decisions follow the same rules in every run, with two exceptions in the enrichment run: P05 electricity was not suggested by the agent and was added at checkpoint 1, and P04 electricity selects the recommended ENER-T4 (the test target) instead of the reference study's method.
+
+The outputs of the reported runs (prompts, raw model responses, parsed outputs and the practitioner's decisions in the LCI Development Workbook) are available from the authors on request.
 
 **References**
 
